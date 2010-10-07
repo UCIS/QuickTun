@@ -1,0 +1,229 @@
+/* Copyright 2010 Ivo Smits <Ivo@UCIS.nl>. All rights reserved.
+   Redistribution and use in source and binary forms, with or without modification, are
+   permitted provided that the following conditions are met:
+
+   1. Redistributions of source code must retain the above copyright notice, this list of
+      conditions and the following disclaimer.
+
+   2. Redistributions in binary form must reproduce the above copyright notice, this list
+      of conditions and the following disclaimer in the documentation and/or other materials
+      provided with the distribution.
+
+   THIS SOFTWARE IS PROVIDED ``AS IS'' AND ANY EXPRESS OR IMPLIED
+   WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND
+   FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE AUTHORS OR
+   CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+   CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+   SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON
+   ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+   NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF
+   ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+   The views and conclusions contained in the software and documentation are those of the
+   authors and should not be interpreted as representing official policies, either expressed
+   or implied, of Ivo Smits.*/
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <fcntl.h>
+#ifndef HAVE_NETINET_IN_H
+#include <netinet/in.h>
+#endif
+#include <sys/ioctl.h>
+#include <linux/if.h>
+#include <linux/if_tun.h>
+#include <linux/if_ether.h>
+#include <poll.h>
+#include <netdb.h>
+#include <stdlib.h>
+
+#define MAX_PACKET_LEN (ETH_FRAME_LEN+4) //Some space for optional packet information
+
+struct qtsession;
+struct qtproto {
+	int encrypted;
+	int buffersize_raw;
+	int buffersize_enc;
+	int offset_raw;
+	int offset_enc;
+	int (*encode)(struct qtsession* sess, char* raw, char* enc, int len);
+	int (*decode)(struct qtsession* sess, char* enc, char* raw, int len);
+	int (*init)(struct qtsession* sess);
+	int protocol_data_size;
+};
+struct qtsession {
+	struct qtproto protocol;
+	void* protocol_data;
+	int fd_socket;
+	int fd_dev;
+	int remote_float;
+	struct sockaddr_in remote_addr;
+};
+
+#ifdef COMBINED_BINARY
+	extern char* (*getconf)(const char*);
+	extern int errorexit(const char*);
+	extern int errorexitp(const char*);
+	extern void print_header();
+	extern void hex2bin(unsigned char*, unsigned char*, int);
+#else
+
+char* (*getconf)(const char*) = getenv;
+
+int errorexit(const char* text) {
+	fprintf(stderr, "%s\n", text);
+	return -1;
+}
+int errorexitp(const char* text) {
+	perror(text);
+	return -1;
+}
+
+void print_header() {
+	printf("UCIS QuickTun (c) 2010 Ivo Smits <Ivo@UCIS.nl>\n");
+	printf("More information: http://wiki.qontrol.nl/QuickTun\n");
+}
+
+int init_udp(struct qtsession* session) {
+	char* envval;
+	printf("Initializing UDP socket...\n");
+	int sfd = socket(PF_INET, SOCK_DGRAM, IPPROTO_UDP);
+	if (sfd < 0) return errorexitp("Could not create UDP socket");
+	struct sockaddr_in udpaddr;
+	struct hostent *he;
+	udpaddr.sin_family = AF_INET;
+	udpaddr.sin_addr.s_addr = INADDR_ANY;
+	udpaddr.sin_port = htons(2998);
+	if (envval = getconf("LOCAL_ADDRESS")) {
+		he = gethostbyname(envval);
+		if (!he) return errorexit("bind address lookup failed");
+		else if (!he->h_addr_list[0]) return errorexit("no address to bind to");
+		udpaddr.sin_addr.s_addr = *((unsigned long*)he->h_addr_list[0]);
+		udpaddr.sin_family = he->h_addrtype;
+	}
+	if (envval = getconf("LOCAL_PORT")) {
+		udpaddr.sin_port = htons(atoi(envval));
+	}
+	if (bind(sfd, (struct sockaddr*)&udpaddr, sizeof(struct sockaddr_in))) return errorexitp("Could not bind socket");
+	if (!(envval = getconf("REMOTE_ADDRESS"))) {
+		session->remote_float = 1;
+		//return errorexit("Missing REMOTE_ADDRESS");
+	} else {
+		session->remote_float = 0;
+		he = gethostbyname(envval);
+		if (!he) return errorexit("remote address lookup failed");
+		else if (!he->h_addr_list[0]) return errorexit("no address to connect to");
+		udpaddr.sin_family = he->h_addrtype;
+		udpaddr.sin_addr.s_addr = *((unsigned long*)he->h_addr_list[0]);
+		if (envval = getconf("REMOTE_PORT")) {
+			udpaddr.sin_port = htons(atoi(envval));
+		}
+		if (connect(sfd, (struct sockaddr*)&udpaddr, sizeof(struct sockaddr_in))) return errorexitp("Could not connect socket");
+		session->remote_addr = udpaddr;
+	}
+	session->fd_socket = sfd;
+	return sfd;
+}
+
+int init_tuntap() {
+	char* envval;
+	printf("Initializing tap device...\n");
+	int ttfd; //Tap device file descriptor
+	struct ifreq ifr; //required for tun/tap setup
+	memset(&ifr, 0, sizeof(ifr));
+	if ((ttfd = open("/dev/net/tun", O_RDWR)) < 0) return errorexitp("Could not open tap device file");
+	if (envval = getconf("INTERFACE")) strcpy(ifr.ifr_name, envval);
+	ifr.ifr_flags = getconf("TUN_MODE") ? IFF_TUN : IFF_TAP;
+	ifr.ifr_flags |= getconf("USE_PI") ? 0 : IFF_NO_PI;
+	if (ioctl(ttfd, TUNSETIFF, (void *)&ifr) < 0) return errorexitp("TUNSETIFF ioctl failed");
+	return ttfd;
+}
+
+void hex2bin(unsigned char* dest, unsigned char* src, int count) {
+	int i;
+	for (i = 0; i < count; i++) {
+		if (*src >= '0' && *src <= '9') *dest = *src - '0';
+		else if (*src >= 'a' && * src <='f') *dest = *src - 'a' + 10;
+		else if (*src >= 'A' && * src <='F') *dest = *src - 'A' + 10;
+		src++; *dest = *dest << 4;
+		if (*src >= '0' && *src <= '9') *dest += *src - '0';
+		else if (*src >= 'a' && *src <= 'f') *dest += *src - 'a' + 10;
+		else if (*src >= 'A' && *src <= 'F') *dest += *src - 'A' + 10;
+		src++; dest++;
+	}
+}
+
+int qtrun(struct qtproto* p) {
+	struct qtsession session;
+	session.protocol = *p;
+	init_udp(&session);
+	session.fd_dev = init_tuntap();
+
+	char protocol_data[p->protocol_data_size];
+	session.protocol_data = &protocol_data;
+	if (p->init) p->init(&session);
+
+	int sfd = session.fd_socket;
+	int ttfd = session.fd_dev;
+	if (sfd == -1) return -1;
+	if (ttfd == -1) return -1;
+	printf("The tunnel is now operational!\n");
+
+	struct pollfd fds[2];
+	fds[0].fd = ttfd;
+	fds[0].events = POLLIN;
+	fds[1].fd = sfd;
+	fds[1].events = POLLIN;
+
+	struct sockaddr_in recvaddr;
+
+	char buffer_raw_a[p->buffersize_raw];
+	char buffer_enc_a[p->buffersize_enc];
+	char* buffer_raw = buffer_raw_a;
+	char* buffer_enc = buffer_enc_a;
+
+	while (1) {
+		int len = poll(fds, 2, -1);
+		if (len < 0) return errorexitp("poll error");
+		else if (fds[0].revents & (POLLERR | POLLHUP | POLLNVAL)) return errorexit("poll error on tap device");
+		else if (fds[1].revents & (POLLHUP | POLLNVAL)) return errorexit("poll error on udp socket");
+		if (fds[0].revents & POLLIN) {
+			if (session.remote_float == 0 || session.remote_float == 2) {
+				len = read(ttfd, buffer_raw + p->offset_raw, p->buffersize_raw);
+				len = p->encode(&session, buffer_raw, buffer_enc, len);
+				if (len < 0) return len;
+				if (session.remote_float == 0) {
+					write(sfd, buffer_enc + p->offset_enc, len);
+				} else {
+					sendto(sfd, buffer_enc + p->offset_enc, len, 0, (struct sockaddr*)&session.remote_addr, sizeof(session.remote_addr));
+				}
+			}
+		}
+		if (fds[1].revents & POLLIN) {
+			socklen_t recvaddr_len = sizeof(recvaddr);
+			if (session.remote_float == 0) {
+			 	len = read(sfd, buffer_enc + p->offset_enc, p->buffersize_enc);
+			} else {
+				len = recvfrom(sfd, buffer_enc + p->offset_enc, p->buffersize_enc, 0, (struct sockaddr*)&recvaddr, &recvaddr_len);
+			}
+			if (len < 0) {
+				int out;
+				len = 4;
+				getsockopt(sfd, SOL_SOCKET, SO_ERROR, &out, &len);
+				fprintf(stderr, "End of file on udp socket");
+			} else {
+				len = p->decode(&session, buffer_enc, buffer_raw, len);
+				if (len != 0 && session.remote_float != 0 && (session.remote_addr.sin_addr.s_addr != recvaddr.sin_addr.s_addr || session.remote_addr.sin_port != recvaddr.sin_port)) {
+					fprintf(stderr, "Remote endpoint has changed to %s:%d", inet_ntoa(recvaddr.sin_addr), ntohs(recvaddr.sin_port));
+					session.remote_addr = recvaddr;
+					session.remote_float = 2;
+				}
+				if (len < 0) return len;
+				write(ttfd, buffer_raw + p->offset_raw, len);
+			}
+		}
+	}
+	return 0;
+}
+#endif

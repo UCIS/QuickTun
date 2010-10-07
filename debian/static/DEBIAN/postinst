@@ -1,0 +1,4 @@
+#!/bin/sh
+if [ "$1" = "configure" ]; then
+	/usr/sbin/useradd -d /nonexistent -N -r -s /bin/false quicktun
+fi

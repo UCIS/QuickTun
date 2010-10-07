@@ -1,0 +1,8 @@
+Package: quicktun
+Version: %VERSION%
+Section: net
+Priority: optional
+Architecture: %ARCHITECTURE%
+Depends: bash, daemon, openvpn, passwd, coreutils
+Maintainer: Ivo Smits <ivo@ucis.nl>
+Description: Very simple, yet secure VPN software

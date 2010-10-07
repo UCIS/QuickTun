@@ -1,0 +1,3 @@
+#!/bin/sh
+test -n "${IF_QT_REMOTE_ADDRESS}" || exit 0
+/usr/sbin/openvpn --rmtun --dev "${IFACE}"
