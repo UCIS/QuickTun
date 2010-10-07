@@ -116,11 +116,15 @@ int init_udp(struct qtsession* session) {
 		else if (!he->h_addr_list[0]) return errorexit("no address to connect to");
 		udpaddr.sin_family = he->h_addrtype;
 		udpaddr.sin_addr.s_addr = *((unsigned long*)he->h_addr_list[0]);
-		if (envval = getconf("REMOTE_PORT")) {
-			udpaddr.sin_port = htons(atoi(envval));
+		if (udpaddr.sin_addr.s_addr == 0) {
+			session->remote_float = 1;
+		} else {
+			if (envval = getconf("REMOTE_PORT")) {
+				udpaddr.sin_port = htons(atoi(envval));
+			}
+			if (connect(sfd, (struct sockaddr*)&udpaddr, sizeof(struct sockaddr_in))) return errorexitp("Could not connect socket");
+			session->remote_addr = udpaddr;
 		}
-		if (connect(sfd, (struct sockaddr*)&udpaddr, sizeof(struct sockaddr_in))) return errorexitp("Could not connect socket");
-		session->remote_addr = udpaddr;
 	}
 	session->fd_socket = sfd;
 	return sfd;
