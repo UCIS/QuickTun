@@ -72,6 +72,7 @@ static int init(struct qtsession* sess) {
 	if (strlen(envval) != 2*crypto_box_PUBLICKEYBYTES) return errorexit("PRIVATE_KEY length");
 	hex2bin(csecretkey, envval, crypto_box_SECRETKEYBYTES);
 	crypto_box_beforenm(d->cbefore, cpublickey, csecretkey);
+	return 0;
 }
 
 #ifdef COMBINED_BINARY

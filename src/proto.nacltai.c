@@ -45,7 +45,7 @@ struct qt_proto_data_nacltai {
 	struct taia cdtaip, cdtaic;
 };
 
-#define noncelength sizeof(struct taia)
+#define noncelength 16
 #define nonceoffset (crypto_box_NONCEBYTES - noncelength)
 /*static unsigned char cbefore[crypto_box_BEFORENMBYTES];
 static unsigned char buffer1[MAX_PACKET_LEN+crypto_box_ZEROBYTES], buffer2[MAX_PACKET_LEN+crypto_box_ZEROBYTES];
@@ -119,6 +119,7 @@ void taia_now(struct taia *t) {
 extern crypto_scalarmult_curve25519_base(unsigned char *pk, unsigned char *sk);
 
 static int encode(struct qtsession* sess, char* raw, char* enc, int len) {
+	fprintf(stderr, "Encoding packet of %d bytes from %d to %d\n", len, raw, enc);
 	struct qt_proto_data_nacltai* d = (struct qt_proto_data_nacltai*)sess->protocol_data;
 	memset(raw, 0, crypto_box_ZEROBYTES);
 	taia_now(&d->cdtaic);
@@ -126,10 +127,12 @@ static int encode(struct qtsession* sess, char* raw, char* enc, int len) {
 	if (crypto_box_afternm(enc, raw, len + crypto_box_ZEROBYTES, d->cenonce, d->cbefore)) return errorexit("Crypto failed");
 	memcpy((void*)(enc + crypto_box_BOXZEROBYTES - noncelength), d->cenonce + nonceoffset, noncelength);
 	len += overhead;
+	fprintf(stderr, "Encoded packet of %d bytes from %d to %d\n", len, raw, enc);
 	return len;
 }
 
 static int decode(struct qtsession* sess, char* enc, char* raw, int len) {
+	fprintf(stderr, "Decoding packet of %d bytes from %d to %d\n", len, enc, raw);
 	struct qt_proto_data_nacltai* d = (struct qt_proto_data_nacltai*)sess->protocol_data;
 	int i;
 	if (len < overhead) {
@@ -137,7 +140,7 @@ static int decode(struct qtsession* sess, char* enc, char* raw, int len) {
 		return 0;
 	}
 	len -= overhead;
-	taia_unpack((char*)(enc + crypto_box_BOXZEROBYTES - noncelength), &(d->cdtaic));
+	taia_unpack((char*)(enc + crypto_box_BOXZEROBYTES - noncelength), &d->cdtaic);
 	if (d->cdtaic.sec.x <= d->cdtaip.sec.x || d->cdtaic.nano <= d->cdtaip.nano || d->cdtaic.atto <= d->cdtaip.atto) { 
 		fprintf(stderr, "Timestamp going back, ignoring packet\n");
 		return 0;
@@ -149,6 +152,7 @@ static int decode(struct qtsession* sess, char* enc, char* raw, int len) {
 		return 0;
 	}
 	d->cdtaip = d->cdtaic;
+	fprintf(stderr, "Decoded packet of %d bytes from %d to %d\n", len, enc, raw);
 	return len;
 }
 
@@ -180,9 +184,10 @@ static int init(struct qtsession* sess) {
 	if (envval = getenv("ROLE")) {
 		d->cenonce[nonceoffset-1] = atoi(envval) ? 1 : 0;
 	} else {
-		d->cenonce[nonceoffset-1] = memcmp(cpublickey, cownpublickey, crypto_box_PUBLICKEYBYTES) ? 1 : 0;
+		d->cenonce[nonceoffset-1] = memcmp(cownpublickey, cpublickey, crypto_box_PUBLICKEYBYTES) > 0 ? 1 : 0;
 	}
 	d->cdnonce[nonceoffset-1] = d->cenonce[nonceoffset-1] ? 0 : 1;
+	return 0;
 }
 
 #ifdef COMBINED_BINARY

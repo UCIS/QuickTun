@@ -81,13 +81,13 @@ int errorexitp(const char* text) {
 }
 
 void print_header() {
-	printf("UCIS QuickTun (c) 2010 Ivo Smits <Ivo@UCIS.nl>\n");
-	printf("More information: http://wiki.qontrol.nl/QuickTun\n");
+	fprintf(stderr, "UCIS QuickTun (c) 2010 Ivo Smits <Ivo@UCIS.nl>\n");
+	fprintf(stderr, "More information: http://wiki.qontrol.nl/QuickTun\n");
 }
 
 int init_udp(struct qtsession* session) {
 	char* envval;
-	printf("Initializing UDP socket...\n");
+	fprintf(stderr, "Initializing UDP socket...\n");
 	int sfd = socket(PF_INET, SOCK_DGRAM, IPPROTO_UDP);
 	if (sfd < 0) return errorexitp("Could not create UDP socket");
 	struct sockaddr_in udpaddr;
@@ -132,7 +132,7 @@ int init_udp(struct qtsession* session) {
 
 int init_tuntap() {
 	char* envval;
-	printf("Initializing tap device...\n");
+	fprintf(stderr, "Initializing tap device...\n");
 	int ttfd; //Tap device file descriptor
 	struct ifreq ifr; //required for tun/tap setup
 	memset(&ifr, 0, sizeof(ifr));
@@ -161,18 +161,20 @@ void hex2bin(unsigned char* dest, unsigned char* src, int count) {
 int qtrun(struct qtproto* p) {
 	struct qtsession session;
 	session.protocol = *p;
+
 	init_udp(&session);
+	int sfd = session.fd_socket;
+	if (sfd == -1) return -1;
+
 	session.fd_dev = init_tuntap();
+	int ttfd = session.fd_dev;
+	if (ttfd == -1) return -1;
 
 	char protocol_data[p->protocol_data_size];
 	session.protocol_data = &protocol_data;
 	if (p->init) p->init(&session);
 
-	int sfd = session.fd_socket;
-	int ttfd = session.fd_dev;
-	if (sfd == -1) return -1;
-	if (ttfd == -1) return -1;
-	printf("The tunnel is now operational!\n");
+	fprintf(stderr, "The tunnel is now operational!\n");
 
 	struct pollfd fds[2];
 	fds[0].fd = ttfd;
