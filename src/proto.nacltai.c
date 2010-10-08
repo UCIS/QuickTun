@@ -168,13 +168,14 @@ static int init(struct qtsession* sess) {
 	memset(d->cenonce, 0, crypto_box_NONCEBYTES);
 	memset(d->cdnonce, 0, crypto_box_NONCEBYTES);
 
-	crypto_scalarmult(cownpublickey, csecretkey);
+	const unsigned char base[32] = {9};
+	crypto_scalarmult(cownpublickey, csecretkey, base);
 
 	if (envval = getenv("TIME_WINDOW")) {
 		taia_now(&d->cdtaip);
 		d->cdtaip.sec.x -= atol(envval);
 	} else {
-		printf("Warning: TIME_WINDOW not set, risking an initial replay attack\n");
+		fprintf(stderr, "Warning: TIME_WINDOW not set, risking an initial replay attack\n");
 	}
 	if (envval = getenv("ROLE")) {
 		d->cenonce[nonceoffset-1] = atoi(envval) ? 1 : 0;
