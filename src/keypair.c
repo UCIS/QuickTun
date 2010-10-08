@@ -41,7 +41,7 @@ int main() {
 	printf("\n");
 
 	printf("PUBLIC: ");
-	for (i = 0; i < crypto_box_SECRETKEYBYTES; i++) printf("%02x", csecretkey[i]);
+	for (i = 0; i < crypto_box_PUBLICKEYBYTES; i++) printf("%02x", cpublickey[i]);
 	printf("\n");
 
 	return 0;
