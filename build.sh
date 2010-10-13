@@ -24,7 +24,7 @@ fi
 echo Done.
 
 export CPATH=./include/
-export LIBRARY_PATH=./lib/
+export LIBRARY_PATH=/usr/local/lib/:./lib/
 
 echo Building combined binary...
 gcc -c -DCOMBINED_BINARY	src/proto.raw.c		-o obj/proto.raw.o
@@ -48,7 +48,7 @@ gcc -fPIC -shared -Wl,-soname,quicktun.raw -o out/libquicktun.raw src/proto.raw.
 ##echo Building frontends...
 ##gcc -o out/quicktun.debian	src/run.debian.c -ldl
 
-if [ -x /usr/bin/dpkg-deb ]; then
+if [ -x /usr/bin/dpkg-deb -a -x /usr/bin/fakeroot ]; then
 	echo Building debian binary...
 	gcc -c -DCOMBINED_BINARY -DDEBIAN_BINARY src/run.combined.c -o obj/run.debian.o
 	gcc -o out/quicktun.debian obj/common.o obj/run.debian.o obj/proto.raw.o obj/proto.nacl0.o obj/proto.nacltai.o obj/crypto_scalarmult_curve25519.o -lnacl
