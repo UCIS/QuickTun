@@ -31,11 +31,11 @@
 #include <netinet/in.h>
 #endif
 #include <sys/ioctl.h>
-#include <net/if.h>
 #include <sys/socket.h>
 #include <poll.h>
 #include <netdb.h>
 #include <stdlib.h>
+#include <net/if.h>
 #ifdef linux
 	#include <linux/if_tun.h>
 	#include <linux/if_ether.h>

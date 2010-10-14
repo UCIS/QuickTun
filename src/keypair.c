@@ -26,6 +26,7 @@
 #include "common.c"
 #include "crypto_box.h"
 #include <time.h>
+#include <fcntl.h>
 
 int main() {
 	print_header();
@@ -33,6 +34,10 @@ int main() {
 	unsigned char cpublickey[crypto_box_PUBLICKEYBYTES];
 	unsigned char csecretkey[crypto_box_SECRETKEYBYTES];
 	int i;
+
+	fprintf(stderr, "Please feed 32 bytes of random data to stdin.\n");
+	fprintf(stderr, "Example (slow but secure): ./quicktun.keypair < /dev/random\n");
+	fprintf(stderr, "Example (fast but insecure): ./quicktun.keypair < /dev/urandom\n");
 
 	crypto_box_keypair(cpublickey, csecretkey);
 
@@ -47,8 +52,11 @@ int main() {
 	return 0;
 }
 
-void randombytes(char* bytes) {
-	char* b;
+int randombytes(char* bytes) {
+	int len = fread(bytes, 1, crypto_box_SECRETKEYBYTES, stdin);
+	if (len < crypto_box_SECRETKEYBYTES) return errorexitp("Error or end of file on STDIN");
+/*	char* b;
 	srand(time(NULL));
-	for (b = bytes; b < bytes + crypto_box_SECRETKEYBYTES; b++) *b = rand() % 255;
+	for (b = bytes; b < bytes + crypto_box_SECRETKEYBYTES; b++) *b = rand() % 255;*/
+	return 0;
 }
