@@ -1,4 +1,4 @@
 #!/bin/sh
-if [ "$1" = "upgrade" -o "$1" = "remove" ]; then
+if [ "$1" = "remove" ]; then
 	/usr/sbin/userdel quicktun
 fi

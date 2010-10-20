@@ -206,8 +206,8 @@ int qtrun(struct qtproto* p) {
 		else if (fds[0].revents & (POLLERR | POLLHUP | POLLNVAL)) return errorexit("poll error on tap device");
 		else if (fds[1].revents & (POLLHUP | POLLNVAL)) return errorexit("poll error on udp socket");
 		if (fds[0].revents & POLLIN) {
+			len = read(ttfd, buffer_raw + p->offset_raw, p->buffersize_raw);
 			if (session.remote_float == 0 || session.remote_float == 2) {
-				len = read(ttfd, buffer_raw + p->offset_raw, p->buffersize_raw);
 				len = p->encode(&session, buffer_raw, buffer_enc, len);
 				if (len < 0) return len;
 				if (session.remote_float == 0) {
