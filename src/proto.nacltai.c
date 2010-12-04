@@ -119,7 +119,7 @@ void taia_now(struct taia *t) {
 extern crypto_scalarmult_curve25519_base(unsigned char *pk, unsigned char *sk);
 
 static int encode(struct qtsession* sess, char* raw, char* enc, int len) {
-	fprintf(stderr, "Encoding packet of %d bytes from %d to %d\n", len, raw, enc);
+//	fprintf(stderr, "Encoding packet of %d bytes from %d to %d\n", len, raw, enc);
 	struct qt_proto_data_nacltai* d = (struct qt_proto_data_nacltai*)sess->protocol_data;
 	memset(raw, 0, crypto_box_ZEROBYTES);
 	taia_now(&d->cdtaic);
@@ -127,12 +127,12 @@ static int encode(struct qtsession* sess, char* raw, char* enc, int len) {
 	if (crypto_box_afternm(enc, raw, len + crypto_box_ZEROBYTES, d->cenonce, d->cbefore)) return errorexit("Crypto failed");
 	memcpy((void*)(enc + crypto_box_BOXZEROBYTES - noncelength), d->cenonce + nonceoffset, noncelength);
 	len += overhead;
-	fprintf(stderr, "Encoded packet of %d bytes from %d to %d\n", len, raw, enc);
+//	fprintf(stderr, "Encoded packet of %d bytes from %d to %d\n", len, raw, enc);
 	return len;
 }
 
 static int decode(struct qtsession* sess, char* enc, char* raw, int len) {
-	fprintf(stderr, "Decoding packet of %d bytes from %d to %d\n", len, enc, raw);
+//	fprintf(stderr, "Decoding packet of %d bytes from %d to %d\n", len, enc, raw);
 	struct qt_proto_data_nacltai* d = (struct qt_proto_data_nacltai*)sess->protocol_data;
 	int i;
 	if (len < overhead) {
@@ -152,7 +152,7 @@ static int decode(struct qtsession* sess, char* enc, char* raw, int len) {
 		return 0;
 	}
 	d->cdtaip = d->cdtaic;
-	fprintf(stderr, "Decoded packet of %d bytes from %d to %d\n", len, enc, raw);
+//	fprintf(stderr, "Decoded packet of %d bytes from %d to %d\n", len, enc, raw);
 	return len;
 }
 
