@@ -32,11 +32,11 @@
 char* getenvdeb(const char* name) {
 	char tmp[1024] = "IF_QT_";
 	if (strcmp(name, "INTERFACE") == 0) return getenv("IFACE");
-	if (strlen(tmp) + strlen(name) >= 1024) {
+	/*if (strlen(tmp) + strlen(name) >= 1024) {
 		fprintf(stderr, "Error: prefixed environment variable name is too long");
 		return NULL;
-	}
-	strcat(tmp, name);
+	}*/
+	strncat(tmp, name, 1024 - 6 - 1);
 	return getenv(tmp);
 }
 

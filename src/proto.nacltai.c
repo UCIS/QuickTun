@@ -141,7 +141,7 @@ static int decode(struct qtsession* sess, char* enc, char* raw, int len) {
 	}
 	len -= overhead;
 	taia_unpack((char*)(enc + crypto_box_BOXZEROBYTES - noncelength), &d->cdtaic);
-	if (d->cdtaic.sec.x <= d->cdtaip.sec.x || d->cdtaic.nano <= d->cdtaip.nano || d->cdtaic.atto <= d->cdtaip.atto) { 
+	if (d->cdtaic.sec.x <= d->cdtaip.sec.x && d->cdtaic.nano <= d->cdtaip.nano && d->cdtaic.atto <= d->cdtaip.atto) { 
 		fprintf(stderr, "Timestamp going back, ignoring packet\n");
 		return 0;
 	}
