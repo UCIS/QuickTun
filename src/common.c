@@ -116,7 +116,7 @@ int init_udp(struct qtsession* session) {
 		session->remote_float = 1;
 		//return errorexit("Missing REMOTE_ADDRESS");
 	} else {
-		session->remote_float = 0;
+		session->remote_float = getconf("REMOTE_FLOAT") ? 1 : 0;
 		he = gethostbyname(envval);
 		if (!he) return errorexit("remote address lookup failed");
 		else if (!he->h_addr_list[0]) return errorexit("no address to connect to");
@@ -182,6 +182,7 @@ int qtrun(struct qtproto* p) {
 	if (ttfd == -1) return -1;
 
 	char protocol_data[p->protocol_data_size];
+	memset(protocol_data, 0, p->protocol_data_size);
 	session.protocol_data = &protocol_data;
 	if (p->init) p->init(&session);
 
