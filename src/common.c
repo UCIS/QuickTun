@@ -42,6 +42,10 @@
 #else
 	#define ETH_FRAME_LEN 1514
 	#include <net/if_tun.h>
+	#ifdef SOLARIS
+		#include <sys/stropts.h>
+		#include <sys/sockio.h>
+	#endif
 #endif
 
 #define MAX_PACKET_LEN (ETH_FRAME_LEN+4) //Some space for optional packet information
@@ -140,6 +144,9 @@ int init_tuntap() {
 	char* envval;
 	fprintf(stderr, "Initializing tun/tap device...\n");
 	int ttfd; //Tap device file descriptor
+#ifdef SOLARIS
+	int ip_fd = -1, if_fd = -1, ppa = 0;
+#endif
 #ifdef linux
 		struct ifreq ifr; //required for tun/tap setup
 		memset(&ifr, 0, sizeof(ifr));
@@ -149,8 +156,37 @@ int init_tuntap() {
 		ifr.ifr_flags |= getconf("USE_PI") ? 0 : IFF_NO_PI;
 		if (ioctl(ttfd, TUNSETIFF, (void *)&ifr) < 0) return errorexitp("TUNSETIFF ioctl failed");
 #else
+	#ifdef SOLARIS
+		if ((ttfd = open("/dev/tun", O_RDWR)) < 0)
+			return errorexitp("Could not open tun device file");
+
+		if ((ip_fd = open("/dev/ip", O_RDWR, 0)) < 0)
+			return errorexitp("Could not open /dev/ip");
+
+		if ((envval = getconf("INTERFACE"))) {
+			while (*envval && !isdigit((int)*envval))
+				envval++;
+			ppa = atoi(envval);
+		}
+
+		if ((ppa = ioctl(ttfd, TUNNEWPPA, ppa)) < 0)
+			return errorexitp("Could not assign new PPA");
+
+		if ((if_fd = open("/dev/tun", O_RDWR, 0)) < 0)
+			return errorexitp("Could not open tun device file again");
+
+		if (ioctl(if_fd, I_PUSH, "ip") < 0)
+			return errorexitp("Could not push IP module");
+
+		if (ioctl(if_fd, IF_UNITSEL, (char *)&ppa) < 0)
+			return errorexitp("Could not set PPA");
+
+		if (ioctl(ip_fd, I_LINK, if_fd) < 0)
+			return errorexitp("Could not link TUN device to IP");
+	#else
 		if (!(envval = getconf("INTERFACE"))) envval = "/dev/tun0";
 		if ((ttfd = open(envval, O_RDWR)) < 0) return errorexitp("Could not open tun device file");
+	#endif
 #endif
 	return ttfd;
 }
