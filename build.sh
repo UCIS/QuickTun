@@ -1,12 +1,15 @@
 #!/bin/sh
 
-tar=tar
-
-if [ `uname -s` == "SunOS" ]; then
+if [ `uname -s` == "OpenBSD" -o `uname -s` == "FreeBSD" ]; then
+	echo "Detected *BSD"
+	tar="gtar"
+elif [ `uname -s` == "SunOS" ]; then
 	echo "Detected SunOS"
-	tar=gtar
+	tar="gtar"
 	CFLAGS="$CFLAGS -DSOLARIS -m64"
 	LDFLAGS="$LDFLAGS -lnsl -lsocket"
+else
+	tar="tar"
 fi
 
 echo Cleaning up...
@@ -23,7 +26,7 @@ if [ ! -e lib/libnacl.a ]; then
 	echo building...
 	mkdir tmp/nacl
 	cd tmp/nacl
-	wget -q -O- http://hyperelliptic.org/nacl/nacl-20090405.tar.bz2 | bunzip2 | tar -xf - --strip-components 1
+	wget -q -O- http://hyperelliptic.org/nacl/nacl-20090405.tar.bz2 | bunzip2 | $tar -xf - --strip-components 1
 	./do
 	cd ../../
 	cp tmp/nacl/build/*/lib/*/libnacl.a lib/
