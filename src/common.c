@@ -144,49 +144,32 @@ int init_tuntap() {
 	char* envval;
 	fprintf(stderr, "Initializing tun/tap device...\n");
 	int ttfd; //Tap device file descriptor
+#ifdef linux
+	struct ifreq ifr; //required for tun/tap setup
+	memset(&ifr, 0, sizeof(ifr));
+	if ((ttfd = open("/dev/net/tun", O_RDWR)) < 0) return errorexitp("Could not open tun/tap device file");
+	if (envval = getconf("INTERFACE")) strcpy(ifr.ifr_name, envval);
+	ifr.ifr_flags = getconf("TUN_MODE") ? IFF_TUN : IFF_TAP;
+	ifr.ifr_flags |= getconf("USE_PI") ? 0 : IFF_NO_PI;
+	if (ioctl(ttfd, TUNSETIFF, (void *)&ifr) < 0) return errorexitp("TUNSETIFF ioctl failed");
+#else
 #ifdef SOLARIS
 	int ip_fd = -1, if_fd = -1, ppa = 0;
-#endif
-#ifdef linux
-		struct ifreq ifr; //required for tun/tap setup
-		memset(&ifr, 0, sizeof(ifr));
-		if ((ttfd = open("/dev/net/tun", O_RDWR)) < 0) return errorexitp("Could not open tun/tap device file");
-		if (envval = getconf("INTERFACE")) strcpy(ifr.ifr_name, envval);
-		ifr.ifr_flags = getconf("TUN_MODE") ? IFF_TUN : IFF_TAP;
-		ifr.ifr_flags |= getconf("USE_PI") ? 0 : IFF_NO_PI;
-		if (ioctl(ttfd, TUNSETIFF, (void *)&ifr) < 0) return errorexitp("TUNSETIFF ioctl failed");
+	if ((ttfd = open("/dev/tun", O_RDWR)) < 0) return errorexitp("Could not open tun device file");
+	if ((ip_fd = open("/dev/ip", O_RDWR, 0)) < 0) return errorexitp("Could not open /dev/ip");
+	if ((envval = getconf("INTERFACE"))) {
+		while (*envval && !isdigit((int)*envval)) envval++;
+		ppa = atoi(envval);
+	}
+	if ((ppa = ioctl(ttfd, TUNNEWPPA, ppa)) < 0) return errorexitp("Could not assign new PPA");
+	if ((if_fd = open("/dev/tun", O_RDWR, 0)) < 0) return errorexitp("Could not open tun device file again");
+	if (ioctl(if_fd, I_PUSH, "ip") < 0) return errorexitp("Could not push IP module");
+	if (ioctl(if_fd, IF_UNITSEL, (char *)&ppa) < 0) return errorexitp("Could not set PPA");
+	if (ioctl(ip_fd, I_LINK, if_fd) < 0) return errorexitp("Could not link TUN device to IP");
 #else
-	#ifdef SOLARIS
-		if ((ttfd = open("/dev/tun", O_RDWR)) < 0)
-			return errorexitp("Could not open tun device file");
-
-		if ((ip_fd = open("/dev/ip", O_RDWR, 0)) < 0)
-			return errorexitp("Could not open /dev/ip");
-
-		if ((envval = getconf("INTERFACE"))) {
-			while (*envval && !isdigit((int)*envval))
-				envval++;
-			ppa = atoi(envval);
-		}
-
-		if ((ppa = ioctl(ttfd, TUNNEWPPA, ppa)) < 0)
-			return errorexitp("Could not assign new PPA");
-
-		if ((if_fd = open("/dev/tun", O_RDWR, 0)) < 0)
-			return errorexitp("Could not open tun device file again");
-
-		if (ioctl(if_fd, I_PUSH, "ip") < 0)
-			return errorexitp("Could not push IP module");
-
-		if (ioctl(if_fd, IF_UNITSEL, (char *)&ppa) < 0)
-			return errorexitp("Could not set PPA");
-
-		if (ioctl(ip_fd, I_LINK, if_fd) < 0)
-			return errorexitp("Could not link TUN device to IP");
-	#else
-		if (!(envval = getconf("INTERFACE"))) envval = "/dev/tun0";
-		if ((ttfd = open(envval, O_RDWR)) < 0) return errorexitp("Could not open tun device file");
-	#endif
+	if (!(envval = getconf("INTERFACE"))) envval = "/dev/tun0";
+	if ((ttfd = open(envval, O_RDWR)) < 0) return errorexitp("Could not open tun device file");
+#endif
 #endif
 	return ttfd;
 }
@@ -248,11 +231,17 @@ int qtrun(struct qtproto* p) {
 				len = p->encode(&session, buffer_raw, buffer_enc, len);
 				if (len < 0) return len;
 				if (session.remote_float == 0) {
-					write(sfd, buffer_enc + p->offset_enc, len);
+					len = write(sfd, buffer_enc + p->offset_enc, len);
 				} else {
-					sendto(sfd, buffer_enc + p->offset_enc, len, 0, (struct sockaddr*)&session.remote_addr, sizeof(session.remote_addr));
+					len = sendto(sfd, buffer_enc + p->offset_enc, len, 0, (struct sockaddr*)&session.remote_addr, sizeof(session.remote_addr));
 				}
 			}
+		}
+		if (fds[1].revents & POLLERR) {
+			int out;
+			len = sizeof(out);
+			getsockopt(sfd, SOL_SOCKET, SO_ERROR, &out, &len);
+			fprintf(stderr, "Received error %d on udp socket\n", out);
 		}
 		if (fds[1].revents & POLLIN) {
 			socklen_t recvaddr_len = sizeof(recvaddr);
@@ -262,14 +251,14 @@ int qtrun(struct qtproto* p) {
 				len = recvfrom(sfd, buffer_enc + p->offset_enc, p->buffersize_enc, 0, (struct sockaddr*)&recvaddr, &recvaddr_len);
 			}
 			if (len < 0) {
-				int out;
-				len = 4;
+				long long out;
+				len = sizeof(out);
 				getsockopt(sfd, SOL_SOCKET, SO_ERROR, &out, &len);
-				fprintf(stderr, "End of file on udp socket");
+				fprintf(stderr, "Received end of file on udp socket (error %d)\n", out);
 			} else {
 				len = p->decode(&session, buffer_enc, buffer_raw, len);
 				if (len != 0 && session.remote_float != 0 && (session.remote_addr.sin_addr.s_addr != recvaddr.sin_addr.s_addr || session.remote_addr.sin_port != recvaddr.sin_port)) {
-					fprintf(stderr, "Remote endpoint has changed to %08X:%d\n", recvaddr.sin_addr, ntohs(recvaddr.sin_port));
+					fprintf(stderr, "Remote endpoint has changed to %08X:%d\n", recvaddr.sin_addr.s_addr, ntohs(recvaddr.sin_port));
 					session.remote_addr = recvaddr;
 					session.remote_float = 2;
 				}
