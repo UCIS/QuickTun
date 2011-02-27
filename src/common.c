@@ -77,9 +77,11 @@ struct qtsession {
 	extern int errorexitp(const char*);
 	extern void print_header();
 	extern void hex2bin(unsigned char*, unsigned char*, int);
+	extern int debug;
 #else
 
 char* (*getconf)(const char*) = getenv;
+int debug = 0;
 
 int errorexit(const char* text) {
 	fprintf(stderr, "%s\n", text);
@@ -92,7 +94,7 @@ int errorexitp(const char* text) {
 
 void print_header() {
 	fprintf(stderr, "UCIS QuickTun (c) 2010 Ivo Smits <Ivo@UCIS.nl>\n");
-	fprintf(stderr, "More information: http://wiki.qontrol.nl/QuickTun\n");
+	fprintf(stderr, "More information: http://wiki.ucis.nl/QuickTun\n");
 }
 
 int init_udp(struct qtsession* session) {
@@ -189,6 +191,7 @@ void hex2bin(unsigned char* dest, unsigned char* src, int count) {
 }
 
 int qtrun(struct qtproto* p) {
+	if (getconf("DEBUG")) debug = 1;
 	struct qtsession session;
 	session.protocol = *p;
 
