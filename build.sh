@@ -17,7 +17,7 @@ rm -rf out/ obj/ tmp/
 
 mkdir -p out
 echo Creating source archive...
-$tar --transform "s,^\.,quicktun-`cat version`," -czf "out/quicktun-`cat version`.tgz" . --exclude "./out" --exclude "./lib" --exclude "./debian/data"
+$tar --transform "s,^\.,quicktun-`cat version`," -czf "out/quicktun-`cat version`.tgz" . --exclude "./out" --exclude "./lib" --exclude "./debian/data" --exclude "./dist.sh"
 
 mkdir -p obj tmp lib
 
