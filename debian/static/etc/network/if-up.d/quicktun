@@ -1,3 +1,8 @@
 #!/bin/sh
 test -n "${IF_QT_REMOTE_ADDRESS}" || exit 0
-/usr/bin/daemon -n "quicktun.${IFACE}" -u quicktun -i -l daemon.err -b daemon.debug -o daemon.debug /usr/sbin/quicktun.debian
+if [ -z "${IF_QT_NO_PRECREATE}" ]; then
+	RUNUSER="quicktun"
+else
+	RUNUSER="root"
+fi
+/usr/bin/daemon -n "quicktun.${IFACE}" -u "${RUNUSER}" -i -l daemon.err -b daemon.debug -o daemon.debug /usr/sbin/quicktun.debian

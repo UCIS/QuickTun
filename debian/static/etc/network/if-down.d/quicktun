@@ -1,3 +1,8 @@
 #!/bin/sh
 test -n "${IF_QT_REMOTE_ADDRESS}" || exit 0
-daemon -n "quicktun.${IFACE}" -u quicktun --stop
+if [ -z "${IF_QT_NO_PRECREATE}" ]; then
+        RUNUSER="quicktun"
+else
+        RUNUSER="root"
+fi
+daemon -n "quicktun.${IFACE}" -u "${RUNUSER}" --stop

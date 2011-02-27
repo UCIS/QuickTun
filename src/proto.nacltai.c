@@ -25,6 +25,7 @@
 
 #include "common.c"
 #include "crypto_box.h"
+#include "crypto_scalarmult_curve25519.h"
 #include <sys/types.h>
 #include <sys/time.h>
 
@@ -116,8 +117,6 @@ void taia_now(struct taia *t) {
   t->atto = 0;
 }
 
-extern crypto_scalarmult_curve25519_base(unsigned char *pk, unsigned char *sk);
-
 static int encode(struct qtsession* sess, char* raw, char* enc, int len) {
 //	fprintf(stderr, "Encoding packet of %d bytes from %d to %d\n", len, raw, enc);
 	struct qt_proto_data_nacltai* d = (struct qt_proto_data_nacltai*)sess->protocol_data;
@@ -172,8 +171,7 @@ static int init(struct qtsession* sess) {
 	memset(d->cenonce, 0, crypto_box_NONCEBYTES);
 	memset(d->cdnonce, 0, crypto_box_NONCEBYTES);
 
-	const unsigned char base[32] = {9};
-	crypto_scalarmult(cownpublickey, csecretkey, base);
+	crypto_scalarmult_curve25519_base(cownpublickey, csecretkey);
 
 	if (envval = getenv("TIME_WINDOW")) {
 		taia_now(&d->cdtaip);
