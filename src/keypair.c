@@ -24,39 +24,37 @@
    or implied, of Ivo Smits.*/
 
 #include "common.c"
-#include "crypto_box.h"
+#include "crypto_box_curve25519xsalsa20poly1305.h"
+#include "crypto_scalarmult_curve25519.h"
 #include <time.h>
 #include <fcntl.h>
 
 int main() {
 	print_header();
 
-	unsigned char cpublickey[crypto_box_PUBLICKEYBYTES];
-	unsigned char csecretkey[crypto_box_SECRETKEYBYTES];
+	unsigned char cpublickey[crypto_box_curve25519xsalsa20poly1305_PUBLICKEYBYTES];
+	unsigned char csecretkey[crypto_box_curve25519xsalsa20poly1305_SECRETKEYBYTES];
 	int i;
 
 	fprintf(stderr, "Please feed 32 bytes of random data to stdin.\n");
-	fprintf(stderr, "Example (slow but secure): ./quicktun.keypair < /dev/random\n");
-	fprintf(stderr, "Example (fast but insecure): ./quicktun.keypair < /dev/urandom\n");
+	fprintf(stderr, "Example (slow but secure): quicktun.keypair < /dev/random\n");
+	fprintf(stderr, "Example (fast but insecure): quicktun.keypair < /dev/urandom\n");
 
-	crypto_box_keypair(cpublickey, csecretkey);
+	int len = fread(csecretkey, 1, crypto_box_curve25519xsalsa20poly1305_SECRETKEYBYTES, stdin);
+	if (len < crypto_box_curve25519xsalsa20poly1305_SECRETKEYBYTES) return errorexitp("Error or end of file on STDIN");
+/*	char* b;
+	srand(time(NULL));
+	for (b = csecretkey; b < csecretkey + crypto_box_curve25519xsalsa20poly1305_SECRETKEYBYTES; b++) *b = rand() % 255;*/
+
+	crypto_scalarmult_curve25519_base(cpublickey, csecretkey);
 
 	printf("SECRET: ");
-	for (i = 0; i < crypto_box_SECRETKEYBYTES; i++) printf("%02x", csecretkey[i]);
+	for (i = 0; i < crypto_box_curve25519xsalsa20poly1305_SECRETKEYBYTES; i++) printf("%02x", csecretkey[i]);
 	printf("\n");
 
 	printf("PUBLIC: ");
-	for (i = 0; i < crypto_box_PUBLICKEYBYTES; i++) printf("%02x", cpublickey[i]);
+	for (i = 0; i < crypto_box_curve25519xsalsa20poly1305_PUBLICKEYBYTES; i++) printf("%02x", cpublickey[i]);
 	printf("\n");
 
-	return 0;
-}
-
-int randombytes(char* bytes) {
-	int len = fread(bytes, 1, crypto_box_SECRETKEYBYTES, stdin);
-	if (len < crypto_box_SECRETKEYBYTES) return errorexitp("Error or end of file on STDIN");
-/*	char* b;
-	srand(time(NULL));
-	for (b = bytes; b < bytes + crypto_box_SECRETKEYBYTES; b++) *b = rand() % 255;*/
 	return 0;
 }

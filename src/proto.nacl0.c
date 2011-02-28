@@ -24,35 +24,35 @@
    or implied, of Ivo Smits.*/
 
 #include "common.c"
-#include "crypto_box.h"
+#include "crypto_box_curve25519xsalsa20poly1305.h"
 
 struct qt_proto_data_nacl0 {
-	unsigned char cnonce[crypto_box_NONCEBYTES], cbefore[crypto_box_BEFORENMBYTES];
+	unsigned char cnonce[crypto_box_curve25519xsalsa20poly1305_NONCEBYTES], cbefore[crypto_box_curve25519xsalsa20poly1305_BEFORENMBYTES];
 };
 
-/*static unsigned char cnonce[crypto_box_NONCEBYTES], cbefore[crypto_box_BEFORENMBYTES];
-static unsigned char buffer1[MAX_PACKET_LEN+crypto_box_ZEROBYTES], buffer2[MAX_PACKET_LEN+crypto_box_ZEROBYTES];
-static const unsigned char* buffer1offset = buffer1 + crypto_box_ZEROBYTES;
-static const unsigned char* buffer2offset = buffer2 + crypto_box_BOXZEROBYTES;
-static const int overhead                 = crypto_box_BOXZEROBYTES;*/
+/*static unsigned char cnonce[crypto_box_curve25519xsalsa20poly1305_NONCEBYTES], cbefore[crypto_box_curve25519xsalsa20poly1305_BEFORENMBYTES];
+static unsigned char buffer1[MAX_PACKET_LEN+crypto_box_curve25519xsalsa20poly1305_ZEROBYTES], buffer2[MAX_PACKET_LEN+crypto_box_curve25519xsalsa20poly1305_ZEROBYTES];
+static const unsigned char* buffer1offset = buffer1 + crypto_box_curve25519xsalsa20poly1305_ZEROBYTES;
+static const unsigned char* buffer2offset = buffer2 + crypto_box_curve25519xsalsa20poly1305_BOXZEROBYTES;
+static const int overhead                 = crypto_box_curve25519xsalsa20poly1305_BOXZEROBYTES;*/
 
 static int encode(struct qtsession* sess, char* raw, char* enc, int len) {
 	struct qt_proto_data_nacl0* d = (struct qt_proto_data_nacl0*)sess->protocol_data;
-	memset(raw, 0, crypto_box_ZEROBYTES);
-	if (crypto_box_afternm(enc, raw, len+crypto_box_ZEROBYTES, d->cnonce, d->cbefore)) return errorexit("Crypto failed");
-	return len + crypto_box_BOXZEROBYTES;
+	memset(raw, 0, crypto_box_curve25519xsalsa20poly1305_ZEROBYTES);
+	if (crypto_box_curve25519xsalsa20poly1305_afternm(enc, raw, len+crypto_box_curve25519xsalsa20poly1305_ZEROBYTES, d->cnonce, d->cbefore)) return errorexit("Crypto failed");
+	return len + crypto_box_curve25519xsalsa20poly1305_BOXZEROBYTES;
 }
 
 static int decode(struct qtsession* sess, char* enc, char* raw, int len) {
 	struct qt_proto_data_nacl0* d = (struct qt_proto_data_nacl0*)sess->protocol_data;
 	int i;
-	if (len < crypto_box_BOXZEROBYTES) {
+	if (len < crypto_box_curve25519xsalsa20poly1305_BOXZEROBYTES) {
 		fprintf(stderr, "Short packet received: %d\n", len);
 		return 0;
 	}
-	len -= crypto_box_BOXZEROBYTES;
-	memset(enc, 0, crypto_box_BOXZEROBYTES);
-	if (i = crypto_box_open_afternm(raw, enc, len+crypto_box_ZEROBYTES, d->cnonce, d->cbefore)) {
+	len -= crypto_box_curve25519xsalsa20poly1305_BOXZEROBYTES;
+	memset(enc, 0, crypto_box_curve25519xsalsa20poly1305_BOXZEROBYTES);
+	if (i = crypto_box_curve25519xsalsa20poly1305_open_afternm(raw, enc, len+crypto_box_curve25519xsalsa20poly1305_ZEROBYTES, d->cnonce, d->cbefore)) {
 		fprintf(stderr, "Decryption failed len=%d result=%d\n", len, i);
 		return 0;
 	}
@@ -63,15 +63,15 @@ static int init(struct qtsession* sess) {
 	char* envval;
 	struct qt_proto_data_nacl0* d = (struct qt_proto_data_nacl0*)sess->protocol_data;
 	printf("Initializing cryptography...\n");
-	memset(d->cnonce, 0, crypto_box_NONCEBYTES);
-	unsigned char cpublickey[crypto_box_PUBLICKEYBYTES], csecretkey[crypto_box_SECRETKEYBYTES];
+	memset(d->cnonce, 0, crypto_box_curve25519xsalsa20poly1305_NONCEBYTES);
+	unsigned char cpublickey[crypto_box_curve25519xsalsa20poly1305_PUBLICKEYBYTES], csecretkey[crypto_box_curve25519xsalsa20poly1305_SECRETKEYBYTES];
 	if (!(envval = getconf("PUBLIC_KEY"))) return errorexit("Missing PUBLIC_KEY");
-	if (strlen(envval) != 2*crypto_box_PUBLICKEYBYTES) return errorexit("PUBLIC_KEY length");
-	hex2bin(cpublickey, envval, crypto_box_PUBLICKEYBYTES);
+	if (strlen(envval) != 2*crypto_box_curve25519xsalsa20poly1305_PUBLICKEYBYTES) return errorexit("PUBLIC_KEY length");
+	hex2bin(cpublickey, envval, crypto_box_curve25519xsalsa20poly1305_PUBLICKEYBYTES);
 	if (!(envval = getconf("PRIVATE_KEY"))) return errorexit("Missing PRIVATE_KEY");
-	if (strlen(envval) != 2*crypto_box_PUBLICKEYBYTES) return errorexit("PRIVATE_KEY length");
-	hex2bin(csecretkey, envval, crypto_box_SECRETKEYBYTES);
-	crypto_box_beforenm(d->cbefore, cpublickey, csecretkey);
+	if (strlen(envval) != 2*crypto_box_curve25519xsalsa20poly1305_PUBLICKEYBYTES) return errorexit("PRIVATE_KEY length");
+	hex2bin(csecretkey, envval, crypto_box_curve25519xsalsa20poly1305_SECRETKEYBYTES);
+	crypto_box_curve25519xsalsa20poly1305_beforenm(d->cbefore, cpublickey, csecretkey);
 	return 0;
 }
 
@@ -82,10 +82,10 @@ static int init(struct qtsession* sess) {
 #endif
 	struct qtproto p = {
 		1,
-		MAX_PACKET_LEN + crypto_box_ZEROBYTES,
-		MAX_PACKET_LEN + crypto_box_BOXZEROBYTES + crypto_box_BOXZEROBYTES,
-		crypto_box_ZEROBYTES,
-		crypto_box_BOXZEROBYTES,
+		MAX_PACKET_LEN + crypto_box_curve25519xsalsa20poly1305_ZEROBYTES,
+		MAX_PACKET_LEN + crypto_box_curve25519xsalsa20poly1305_BOXZEROBYTES + crypto_box_curve25519xsalsa20poly1305_BOXZEROBYTES,
+		crypto_box_curve25519xsalsa20poly1305_ZEROBYTES,
+		crypto_box_curve25519xsalsa20poly1305_BOXZEROBYTES,
 		encode,
 		decode,
 		init,

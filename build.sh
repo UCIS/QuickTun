@@ -25,7 +25,7 @@ export LIBRARY_PATH="/usr/local/lib/:${LIBRARY_PATH}"
 if [ -z "${NACL_SHARED}" ]; then
 	mkdir -p lib include
 	echo Checking for NaCl library...
-	if [ -e lib/libnacl.a -a -e include/crypto_box.h -a -e include/crypto_box_curve25519xsalsa20poly1305.h -a -e include/crypto_scalarmult_curve25519.h ]; then
+	if [ -e lib/libnacl.a -a -e include/crypto_box_curve25519xsalsa20poly1305.h -a -e include/crypto_scalarmult_curve25519.h ]; then
 		echo Found.
 	else
 		echo Not found, building...
@@ -35,7 +35,6 @@ if [ -z "${NACL_SHARED}" ]; then
 		./do
 		cd ../../
 		cp tmp/nacl/build/*/lib/*/libnacl.a lib/
-		cp tmp/nacl/build/*/include/*/crypto_box.h include/
 		cp tmp/nacl/build/*/include/*/crypto_box_curve25519xsalsa20poly1305.h include/
 		cp tmp/nacl/build/*/include/*/crypto_scalarmult_curve25519.h include/
 		echo Done.
@@ -44,6 +43,7 @@ if [ -z "${NACL_SHARED}" ]; then
 	export LIBRARY_PATH="/usr/local/lib/:./lib/:${LIBRARY_PATH}"
 else
 	echo Using shared NaCl library.
+	export CPATH="/usr/include/nacl/:${CPATH}"
 fi
 
 echo Building combined binary...
