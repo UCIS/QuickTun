@@ -19,27 +19,32 @@ mkdir -p out
 echo Creating source archive...
 $tar --transform "s,^,quicktun-`cat version`/," -czf "out/quicktun-`cat version`.tgz" build.sh clean.sh debian src version --exclude "debian/data"
 
-mkdir -p obj tmp lib include
+mkdir -p obj tmp
 
-echo Checking for NaCl library...
-if [ -e lib/libnacl.a -a -e include/crypto_box.h -a -e include/crypto_box_curve25519xsalsa20poly1305.h -a -e include/crypto_scalarmult_curve25519.h ]; then
-	echo Found.
+export LIBRARY_PATH="/usr/local/lib/:${LIBRARY_PATH}"
+if [ -z "${NACL_SHARED}" ]; then
+	mkdir -p lib include
+	echo Checking for NaCl library...
+	if [ -e lib/libnacl.a -a -e include/crypto_box.h -a -e include/crypto_box_curve25519xsalsa20poly1305.h -a -e include/crypto_scalarmult_curve25519.h ]; then
+		echo Found.
+	else
+		echo Not found, building...
+		mkdir tmp/nacl
+		cd tmp/nacl
+		wget -q -O- http://hyperelliptic.org/nacl/nacl-20110221.tar.bz2 | bunzip2 | $tar -xf - --strip-components 1
+		./do
+		cd ../../
+		cp tmp/nacl/build/*/lib/*/libnacl.a lib/
+		cp tmp/nacl/build/*/include/*/crypto_box.h include/
+		cp tmp/nacl/build/*/include/*/crypto_box_curve25519xsalsa20poly1305.h include/
+		cp tmp/nacl/build/*/include/*/crypto_scalarmult_curve25519.h include/
+		echo Done.
+	fi
+	export CPATH="./include/:${CPATH}"
+	export LIBRARY_PATH="/usr/local/lib/:./lib/:${LIBRARY_PATH}"
 else
-	echo Not found, building...
-	mkdir tmp/nacl
-	cd tmp/nacl
-	wget -q -O- http://hyperelliptic.org/nacl/nacl-20110221.tar.bz2 | bunzip2 | $tar -xf - --strip-components 1
-	./do
-	cd ../../
-	cp tmp/nacl/build/*/lib/*/libnacl.a lib/
-	cp tmp/nacl/build/*/include/*/crypto_box.h include/
-	cp tmp/nacl/build/*/include/*/crypto_box_curve25519xsalsa20poly1305.h include/
-	cp tmp/nacl/build/*/include/*/crypto_scalarmult_curve25519.h include/
-	echo Done.
+	echo Using shared NaCl library.
 fi
-
-export CPATH=./include/
-export LIBRARY_PATH=/usr/local/lib/:./lib/
 
 echo Building combined binary...
 gcc $CFLAGS -c -DCOMBINED_BINARY	src/proto.raw.c		-o obj/proto.raw.o
