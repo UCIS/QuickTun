@@ -118,7 +118,7 @@ void taia_now(struct taia *t) {
 }
 
 static int encode(struct qtsession* sess, char* raw, char* enc, int len) {
-	if (debug) fprintf(stderr, "Encoding packet of %d bytes from %d to %d\n", len, raw, enc);
+	if (debug) fprintf(stderr, "Encoding packet of %d bytes from %d to %d\n", len, (int)raw, (int)enc);
 	struct qt_proto_data_nacltai* d = (struct qt_proto_data_nacltai*)sess->protocol_data;
 	memset(raw, 0, crypto_box_curve25519xsalsa20poly1305_ZEROBYTES);
 	taia_now(&d->cdtaic);
@@ -126,12 +126,12 @@ static int encode(struct qtsession* sess, char* raw, char* enc, int len) {
 	if (crypto_box_curve25519xsalsa20poly1305_afternm(enc, raw, len + crypto_box_curve25519xsalsa20poly1305_ZEROBYTES, d->cenonce, d->cbefore)) return errorexit("Encryption failed");
 	memcpy((void*)(enc + crypto_box_curve25519xsalsa20poly1305_BOXZEROBYTES - noncelength), d->cenonce + nonceoffset, noncelength);
 	len += overhead;
-	if (debug) fprintf(stderr, "Encoded packet of %d bytes from %d to %d\n", len, raw, enc);
+	if (debug) fprintf(stderr, "Encoded packet of %d bytes from %d to %d\n", len, (int)raw, (int)enc);
 	return len;
 }
 
 static int decode(struct qtsession* sess, char* enc, char* raw, int len) {
-	if (debug) fprintf(stderr, "Decoding packet of %d bytes from %d to %d\n", len, enc, raw);
+	if (debug) fprintf(stderr, "Decoding packet of %d bytes from %d to %d\n", len, (int)enc, (int)raw);
 	struct qt_proto_data_nacltai* d = (struct qt_proto_data_nacltai*)sess->protocol_data;
 	int i;
 	if (len < overhead) {
@@ -140,7 +140,7 @@ static int decode(struct qtsession* sess, char* enc, char* raw, int len) {
 	}
 	len -= overhead;
 	taia_unpack((char*)(enc + crypto_box_curve25519xsalsa20poly1305_BOXZEROBYTES - noncelength), &d->cdtaic);
-	if (d->cdtaic.sec.x <= d->cdtaip.sec.x && d->cdtaic.nano <= d->cdtaip.nano && d->cdtaic.atto <= d->cdtaip.atto) { 
+	if (d->cdtaic.sec.x <= d->cdtaip.sec.x && d->cdtaic.nano <= d->cdtaip.nano && d->cdtaic.atto <= d->cdtaip.atto) {
 		fprintf(stderr, "Timestamp going back, ignoring packet\n");
 		return 0;
 	}
@@ -151,7 +151,7 @@ static int decode(struct qtsession* sess, char* enc, char* raw, int len) {
 		return 0;
 	}
 	d->cdtaip = d->cdtaic;
-	if (debug) fprintf(stderr, "Decoded packet of %d bytes from %d to %d\n", len, enc, raw);
+	if (debug) fprintf(stderr, "Decoded packet of %d bytes from %d to %d\n", len, (int)enc, (int)raw);
 	return len;
 }
 

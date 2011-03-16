@@ -71,3 +71,5 @@ if [ -f /etc/network/interfaces ]; then
 		cd ..
 	fi
 fi
+
+rm -rf obj tmp
