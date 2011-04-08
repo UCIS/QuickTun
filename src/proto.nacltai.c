@@ -43,7 +43,7 @@ struct taia {
 struct qt_proto_data_nacltai {
 	unsigned char cenonce[crypto_box_curve25519xsalsa20poly1305_NONCEBYTES], cdnonce[crypto_box_curve25519xsalsa20poly1305_NONCEBYTES];
 	unsigned char cbefore[crypto_box_curve25519xsalsa20poly1305_BEFORENMBYTES];
-	struct taia cdtaip, cdtaic;
+	struct taia cdtaip, cdtaie;
 };
 
 #define noncelength 16
@@ -114,15 +114,15 @@ void taia_now(struct taia *t) {
   gettimeofday(&now,(struct timezone *) 0);
   t->sec.x = 4611686018427387914ULL + (uint64) now.tv_sec;
   t->nano = 1000 * now.tv_usec + 500;
-  t->atto = 0;
+  t->atto++;
 }
 
 static int encode(struct qtsession* sess, char* raw, char* enc, int len) {
 	if (debug) fprintf(stderr, "Encoding packet of %d bytes from %d to %d\n", len, (int)raw, (int)enc);
 	struct qt_proto_data_nacltai* d = (struct qt_proto_data_nacltai*)sess->protocol_data;
 	memset(raw, 0, crypto_box_curve25519xsalsa20poly1305_ZEROBYTES);
-	taia_now(&d->cdtaic);
-	taia_pack(d->cenonce + nonceoffset, &(d->cdtaic));
+	taia_now(&d->cdtaie);
+	taia_pack(d->cenonce + nonceoffset, &(d->cdtaie));
 	if (crypto_box_curve25519xsalsa20poly1305_afternm(enc, raw, len + crypto_box_curve25519xsalsa20poly1305_ZEROBYTES, d->cenonce, d->cbefore)) return errorexit("Encryption failed");
 	memcpy((void*)(enc + crypto_box_curve25519xsalsa20poly1305_BOXZEROBYTES - noncelength), d->cenonce + nonceoffset, noncelength);
 	len += overhead;
@@ -133,14 +133,15 @@ static int encode(struct qtsession* sess, char* raw, char* enc, int len) {
 static int decode(struct qtsession* sess, char* enc, char* raw, int len) {
 	if (debug) fprintf(stderr, "Decoding packet of %d bytes from %d to %d\n", len, (int)enc, (int)raw);
 	struct qt_proto_data_nacltai* d = (struct qt_proto_data_nacltai*)sess->protocol_data;
+	struct taia cdtaic;
 	int i;
 	if (len < overhead) {
 		fprintf(stderr, "Short packet received: %d\n", len);
 		return 0;
 	}
 	len -= overhead;
-	taia_unpack((char*)(enc + crypto_box_curve25519xsalsa20poly1305_BOXZEROBYTES - noncelength), &d->cdtaic);
-	if (d->cdtaic.sec.x <= d->cdtaip.sec.x && d->cdtaic.nano <= d->cdtaip.nano && d->cdtaic.atto <= d->cdtaip.atto) {
+	taia_unpack((char*)(enc + crypto_box_curve25519xsalsa20poly1305_BOXZEROBYTES - noncelength), &cdtaic);
+	if (cdtaic.sec.x <= d->cdtaip.sec.x && cdtaic.nano <= d->cdtaip.nano && cdtaic.atto <= d->cdtaip.atto) {
 		fprintf(stderr, "Timestamp going back, ignoring packet\n");
 		return 0;
 	}
@@ -150,7 +151,7 @@ static int decode(struct qtsession* sess, char* enc, char* raw, int len) {
 		fprintf(stderr, "Decryption failed len=%d result=%d\n", len, i);
 		return 0;
 	}
-	d->cdtaip = d->cdtaic;
+	d->cdtaip = cdtaic;
 	if (debug) fprintf(stderr, "Decoded packet of %d bytes from %d to %d\n", len, (int)enc, (int)raw);
 	return len;
 }
