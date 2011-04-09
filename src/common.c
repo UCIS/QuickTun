@@ -206,7 +206,7 @@ int qtrun(struct qtproto* p) {
 	char protocol_data[p->protocol_data_size];
 	memset(protocol_data, 0, p->protocol_data_size);
 	session.protocol_data = &protocol_data;
-	if (p->init) p->init(&session);
+	if (p->init && p->init(&session) < 0) return -1;
 
 	fprintf(stderr, "The tunnel is now operational!\n");
 

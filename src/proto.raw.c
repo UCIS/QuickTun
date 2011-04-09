@@ -35,28 +35,21 @@ static int decode(struct qtsession* sess, char* enc, char* raw, int len) {
 	return len;
 }
 
-#ifdef COMBINED_BINARY
-	int tunmain_raw() {
-#else
-	int tunmain() {
-#endif
-	struct qtproto p = {
-		0,
-		MAX_PACKET_LEN,
-		MAX_PACKET_LEN,
-		0,
-		0,
-		decode,
-		encode,
-		NULL,
-		0,
-	};
-	return qtrun(&p);
-}
+struct qtproto qtproto_raw = {
+	0,
+	MAX_PACKET_LEN,
+	MAX_PACKET_LEN,
+	0,
+	0,
+	decode,
+	encode,
+	NULL,
+	0,
+};
 
 #ifndef COMBINED_BINARY
 int main() {
 	print_header();
-	return tunmain();
+	return qtrun(&qtproto_raw);
 }
 #endif

@@ -25,6 +25,10 @@
 
 #include "common.c"
 
+struct qtproto qtproto_raw;
+struct qtproto qtproto_nacl0;
+struct qtproto qtproto_nacltai;
+
 #ifdef DEBIAN_BINARY
 char* getenvdeb(const char* name) {
 	char tmp[1024] = "IF_QT_";
@@ -48,18 +52,18 @@ int main() {
 	char* envval;
 	if (envval = getconf("PROTOCOL")) {
 		if (strcmp(envval, "raw") == 0) {
-			return tunmain_raw();
+			return qtrun(&qtproto_raw);
 		} else if (strcmp(envval, "nacl0") == 0) {
-			return tunmain_nacl0();
+			return qtrun(&qtproto_nacl0);
 		} else if (strcmp(envval, "nacltai") == 0) {
-			return tunmain_nacltai();
+			return qtrun(&qtproto_nacltai);
 		} else {
 			fprintf(stderr, "Unknown protocol specified: %s\n", envval);
 			return -1;
 		}
 	} else if (getconf("PRIVATE_KEY")) {
-		return tunmain_nacl0();
+		return qtrun(&qtproto_nacl0);
 	} else {
-		return tunmain_raw();
+		return qtrun(&qtproto_raw);
 	}
 }

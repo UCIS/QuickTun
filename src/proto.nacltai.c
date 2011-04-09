@@ -189,28 +189,21 @@ static int init(struct qtsession* sess) {
 	return 0;
 }
 
-#ifdef COMBINED_BINARY
-	int tunmain_nacltai() {
-#else
-	int tunmain() {
-#endif
-	struct qtproto p = {
-		1,
-		MAX_PACKET_LEN + crypto_box_curve25519xsalsa20poly1305_ZEROBYTES,
-		MAX_PACKET_LEN + crypto_box_curve25519xsalsa20poly1305_ZEROBYTES,
-		crypto_box_curve25519xsalsa20poly1305_ZEROBYTES,
-		crypto_box_curve25519xsalsa20poly1305_BOXZEROBYTES - noncelength,
-		encode,
-		decode,
-		init,
-		sizeof(struct qt_proto_data_nacltai),
-	};
-	return qtrun(&p);
-}
+struct qtproto qtproto_nacltai = {
+	1,
+	MAX_PACKET_LEN + crypto_box_curve25519xsalsa20poly1305_ZEROBYTES,
+	MAX_PACKET_LEN + crypto_box_curve25519xsalsa20poly1305_ZEROBYTES,
+	crypto_box_curve25519xsalsa20poly1305_ZEROBYTES,
+	crypto_box_curve25519xsalsa20poly1305_BOXZEROBYTES - noncelength,
+	encode,
+	decode,
+	init,
+	sizeof(struct qt_proto_data_nacltai),
+};
 
 #ifndef COMBINED_BINARY
 int main() {
 	print_header();
-	return tunmain();
+	return qtrun(&qtproto_nacltai);
 }
 #endif

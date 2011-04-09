@@ -30,12 +30,6 @@ struct qt_proto_data_nacl0 {
 	unsigned char cnonce[crypto_box_curve25519xsalsa20poly1305_NONCEBYTES], cbefore[crypto_box_curve25519xsalsa20poly1305_BEFORENMBYTES];
 };
 
-/*static unsigned char cnonce[crypto_box_curve25519xsalsa20poly1305_NONCEBYTES], cbefore[crypto_box_curve25519xsalsa20poly1305_BEFORENMBYTES];
-static unsigned char buffer1[MAX_PACKET_LEN+crypto_box_curve25519xsalsa20poly1305_ZEROBYTES], buffer2[MAX_PACKET_LEN+crypto_box_curve25519xsalsa20poly1305_ZEROBYTES];
-static const unsigned char* buffer1offset = buffer1 + crypto_box_curve25519xsalsa20poly1305_ZEROBYTES;
-static const unsigned char* buffer2offset = buffer2 + crypto_box_curve25519xsalsa20poly1305_BOXZEROBYTES;
-static const int overhead                 = crypto_box_curve25519xsalsa20poly1305_BOXZEROBYTES;*/
-
 static int encode(struct qtsession* sess, char* raw, char* enc, int len) {
 	struct qt_proto_data_nacl0* d = (struct qt_proto_data_nacl0*)sess->protocol_data;
 	memset(raw, 0, crypto_box_curve25519xsalsa20poly1305_ZEROBYTES);
@@ -75,28 +69,21 @@ static int init(struct qtsession* sess) {
 	return 0;
 }
 
-#ifdef COMBINED_BINARY
-	int tunmain_nacl0() {
-#else
-	int tunmain() {
-#endif
-	struct qtproto p = {
-		1,
-		MAX_PACKET_LEN + crypto_box_curve25519xsalsa20poly1305_ZEROBYTES,
-		MAX_PACKET_LEN + crypto_box_curve25519xsalsa20poly1305_BOXZEROBYTES + crypto_box_curve25519xsalsa20poly1305_BOXZEROBYTES,
-		crypto_box_curve25519xsalsa20poly1305_ZEROBYTES,
-		crypto_box_curve25519xsalsa20poly1305_BOXZEROBYTES,
-		encode,
-		decode,
-		init,
-		sizeof(struct qt_proto_data_nacl0),
-	};
-	return qtrun(&p);
-}
+struct qtproto qtproto_nacl0 = {
+	1,
+	MAX_PACKET_LEN + crypto_box_curve25519xsalsa20poly1305_ZEROBYTES,
+	MAX_PACKET_LEN + crypto_box_curve25519xsalsa20poly1305_BOXZEROBYTES + crypto_box_curve25519xsalsa20poly1305_BOXZEROBYTES,
+	crypto_box_curve25519xsalsa20poly1305_ZEROBYTES,
+	crypto_box_curve25519xsalsa20poly1305_BOXZEROBYTES,
+	encode,
+	decode,
+	init,
+	sizeof(struct qt_proto_data_nacl0),
+};
 
 #ifndef COMBINED_BINARY
 int main() {
 	print_header();
-	return tunmain();
+	return qtrun(&qtproto_nacl0);
 }
 #endif
