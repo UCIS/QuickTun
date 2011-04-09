@@ -195,13 +195,13 @@ int qtrun(struct qtproto* p) {
 	struct qtsession session;
 	session.protocol = *p;
 
-	init_udp(&session);
+	if (init_udp(&session) < 0) return -1;
 	int sfd = session.fd_socket;
 	if (sfd == -1) return -1;
 
-	session.fd_dev = init_tuntap();
-	int ttfd = session.fd_dev;
+	int ttfd = init_tuntap();
 	if (ttfd == -1) return -1;
+	session.fd_dev = ttfd;
 
 	char protocol_data[p->protocol_data_size];
 	memset(protocol_data, 0, p->protocol_data_size);
