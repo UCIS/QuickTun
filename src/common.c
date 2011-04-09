@@ -260,12 +260,12 @@ int qtrun(struct qtproto* p) {
 				fprintf(stderr, "Received end of file on udp socket (error %d)\n", out);
 			} else {
 				len = p->decode(&session, buffer_enc, buffer_raw, len);
+				if (len < 0) return len;
 				if (len != 0 && session.remote_float != 0 && (session.remote_addr.sin_addr.s_addr != recvaddr.sin_addr.s_addr || session.remote_addr.sin_port != recvaddr.sin_port)) {
-					fprintf(stderr, "Remote endpoint has changed to %08X:%d\n", recvaddr.sin_addr.s_addr, ntohs(recvaddr.sin_port));
+					fprintf(stderr, "Remote endpoint has changed to %08X:%d\n", ntohl(recvaddr.sin_addr.s_addr), ntohs(recvaddr.sin_port));
 					session.remote_addr = recvaddr;
 					session.remote_float = 2;
 				}
-				if (len < 0) return len;
 				write(ttfd, buffer_raw + p->offset_raw, len);
 			}
 		}
