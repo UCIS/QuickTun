@@ -8,6 +8,10 @@ elif [ "$(uname -s)" = "SunOS" ]; then
 	tar="gtar"
 	CFLAGS="$CFLAGS -DSOLARIS -m64"
 	LDFLAGS="$LDFLAGS -lnsl -lsocket"
+elif [ "$(uname -s)" = "Darwin" ]; then
+	echo "Detected Mac OS X (Darwin)"
+	CFLAGS="$CFLAGS -arch i686"
+	LDFLAGS="$LDFLAGS -arch i686"
 else
 	tar="tar"
 fi
@@ -31,12 +35,14 @@ if [ -z "${NACL_SHARED}" ]; then
 		echo Not found, building...
 		mkdir tmp/nacl
 		cd tmp/nacl
-		wget -q -O- http://hyperelliptic.org/nacl/nacl-20110221.tar.bz2 | bunzip2 | $tar -xf - --strip-components 1
+		NACLURL="http://hyperelliptic.org/nacl/nacl-20110221.tar.bz2"
+		(wget -q -O- "${NACLURL}" || curl -q "${NACLURL}") | bunzip2 | $tar -xf - --strip-components 1
 		./do
 		cd ../../
-		cp tmp/nacl/build/*/lib/*/libnacl.a lib/
-		cp tmp/nacl/build/*/include/*/crypto_box_curve25519xsalsa20poly1305.h include/
-		cp tmp/nacl/build/*/include/*/crypto_scalarmult_curve25519.h include/
+		ABI=`nacl/build/*/bin/okabi | head -n 1`
+		cp "tmp/nacl/build/*/lib/${ABI}/libnacl.a" lib/
+		cp "tmp/nacl/build/*/include/${ABI}/crypto_box_curve25519xsalsa20poly1305.h" include/
+		cp "tmp/nacl/build/*/include/${ABI}/crypto_scalarmult_curve25519.h" include/
 		echo Done.
 	fi
 	export CPATH="./include/:${CPATH}"

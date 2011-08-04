@@ -25,9 +25,9 @@
 
 #include "common.c"
 
-struct qtproto qtproto_raw;
-struct qtproto qtproto_nacl0;
-struct qtproto qtproto_nacltai;
+extern struct qtproto qtproto_raw;
+extern struct qtproto qtproto_nacl0;
+extern struct qtproto qtproto_nacltai;
 
 #ifdef DEBIAN_BINARY
 char* getenvdeb(const char* name) {
@@ -67,3 +67,4 @@ int main() {
 		return qtrun(&qtproto_raw);
 	}
 }
+
