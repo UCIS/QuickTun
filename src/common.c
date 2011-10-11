@@ -176,6 +176,12 @@ int init_tuntap() {
 #else
 	if (!(envval = getconf("INTERFACE"))) envval = "/dev/tun0";
 	if ((ttfd = open(envval, O_RDWR)) < 0) return errorexitp("Could not open tun device file");
+	if ((envval = getconf("TUN_MODE")) && atoi(envval)) {
+		int i = IFF_POINTOPOINT | IFF_MULTICAST;
+		ioctl(tt->fd, TUNSIFMODE, &i);
+		i = 1;
+		ioctl(tt->fd, TUNSIFHEAD, &i);
+	}
 #endif
 	return ttfd;
 }
