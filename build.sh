@@ -39,7 +39,7 @@ if [ -z "${NACL_SHARED}" ]; then
 		(wget -q -O- "${NACLURL}" || curl -q "${NACLURL}") | bunzip2 | $tar -xf - --strip-components 1
 		./do
 		cd ../../
-		ABI=`nacl/build/*/bin/okabi | head -n 1`
+		ABI=`tmp/nacl/build/*/bin/okabi | head -n 1`
 		cp "tmp/nacl/build/*/lib/${ABI}/libnacl.a" lib/
 		cp "tmp/nacl/build/*/include/${ABI}/crypto_box_curve25519xsalsa20poly1305.h" include/
 		cp "tmp/nacl/build/*/include/${ABI}/crypto_scalarmult_curve25519.h" include/
