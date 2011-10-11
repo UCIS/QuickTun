@@ -3,6 +3,8 @@ test -n "${IF_QT_REMOTE_ADDRESS}" || exit 0
 test -z "${IF_QT_NO_PRECREATE}" || exit 0
 if [ -x /usr/sbin/openvpn ]; then
 	/usr/sbin/openvpn --rmtun --dev "${IFACE}"
-elif [ -x /sbin/ip ]; then
+elif [ -x /sbin/ip ] && /sbin/ip tuntap 2>&1 >/dev/null; then
 	/sbin/ip tuntap del dev "${IFACE}"
+elif [ -x /usr/sbin/tunctl ]; then
+	/usr/sbin/tunctl -d "${IFACE}"
 fi

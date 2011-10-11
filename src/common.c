@@ -146,16 +146,21 @@ int init_tuntap() {
 	char* envval;
 	fprintf(stderr, "Initializing tun/tap device...\n");
 	int ttfd; //Tap device file descriptor
-#ifdef linux
+#if defined linux
 	struct ifreq ifr; //required for tun/tap setup
 	memset(&ifr, 0, sizeof(ifr));
 	if ((ttfd = open("/dev/net/tun", O_RDWR)) < 0) return errorexitp("Could not open tun/tap device file");
 	if (envval = getconf("INTERFACE")) strcpy(ifr.ifr_name, envval);
-	ifr.ifr_flags = getconf("TUN_MODE") ? IFF_TUN : IFF_TAP;
-	ifr.ifr_flags |= getconf("USE_PI") ? 0 : IFF_NO_PI;
+	if ((envval = getconf("TUN_MODE")) && atoi(envval)) {
+		ifr.ifr_flags = IFF_TUN;
+	} else {
+		ifr.ifr_flags = IFF_TAP;
+	}
+	if (!(envval = getconf("USE_PI")) || !atoi(envval)) {
+		ifr.ifr_flags |= IFF_NO_PI;
+	}
 	if (ioctl(ttfd, TUNSETIFF, (void *)&ifr) < 0) return errorexitp("TUNSETIFF ioctl failed");
-#else
-#ifdef SOLARIS
+#elif defined SOLARIS
 	int ip_fd = -1, if_fd = -1, ppa = 0;
 	if ((ttfd = open("/dev/tun", O_RDWR)) < 0) return errorexitp("Could not open tun device file");
 	if ((ip_fd = open("/dev/ip", O_RDWR, 0)) < 0) return errorexitp("Could not open /dev/ip");
@@ -171,7 +176,6 @@ int init_tuntap() {
 #else
 	if (!(envval = getconf("INTERFACE"))) envval = "/dev/tun0";
 	if ((ttfd = open(envval, O_RDWR)) < 0) return errorexitp("Could not open tun device file");
-#endif
 #endif
 	return ttfd;
 }

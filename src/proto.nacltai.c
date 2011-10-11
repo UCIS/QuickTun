@@ -174,13 +174,13 @@ static int init(struct qtsession* sess) {
 
 	crypto_scalarmult_curve25519_base(cownpublickey, csecretkey);
 
-	if (envval = getenv("TIME_WINDOW")) {
+	if (envval = getconf("TIME_WINDOW")) {
 		taia_now(&d->cdtaip);
 		d->cdtaip.sec.x -= atol(envval);
 	} else {
 		fprintf(stderr, "Warning: TIME_WINDOW not set, risking an initial replay attack\n");
 	}
-	if (envval = getenv("ROLE")) {
+	if (envval = getconf("ROLE")) {
 		d->cenonce[nonceoffset-1] = atoi(envval) ? 1 : 0;
 	} else {
 		d->cenonce[nonceoffset-1] = memcmp(cownpublickey, cpublickey, crypto_box_curve25519xsalsa20poly1305_PUBLICKEYBYTES) > 0 ? 1 : 0;
