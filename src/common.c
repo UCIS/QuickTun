@@ -178,9 +178,13 @@ int init_tuntap() {
 	if ((ttfd = open(envval, O_RDWR)) < 0) return errorexitp("Could not open tun device file");
 	if ((envval = getconf("TUN_MODE")) && atoi(envval)) {
 		int i = IFF_POINTOPOINT | IFF_MULTICAST;
-		ioctl(tt->fd, TUNSIFMODE, &i);
-		i = 1;
-		ioctl(tt->fd, TUNSIFHEAD, &i);
+		ioctl(ttfd, TUNSIFMODE, &i);
+		if ((envval = getconf("USE_PI")) && atoi(envval)) {
+			i = 1;
+		} else {
+			i = 0;
+		}
+		ioctl(ttfd, TUNSIFHEAD, &i);
 	}
 #endif
 	return ttfd;

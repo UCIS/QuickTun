@@ -39,14 +39,15 @@ if [ -z "${NACL_SHARED}" ]; then
 		(wget -q -O- "${NACLURL}" || curl -q "${NACLURL}") | bunzip2 | $tar -xf - --strip-components 1
 		./do
 		cd ../../
-		ABI=`tmp/nacl/build/*/bin/okabi | head -n 1`
-		cp "tmp/nacl/build/*/lib/${ABI}/libnacl.a" lib/
-		cp "tmp/nacl/build/*/include/${ABI}/crypto_box_curve25519xsalsa20poly1305.h" include/
-		cp "tmp/nacl/build/*/include/${ABI}/crypto_scalarmult_curve25519.h" include/
+		NACLDIR="tmp/nacl/build/`hostname | sed 's/\..*//' | tr -cd '[a-z][A-Z][0-9]'`"
+		ABI=`"${NACLDIR}/bin/okabi" | head -n 1`
+		cp "${NACLDIR}/lib/${ABI}/libnacl.a" lib/
+		cp "${NACLDIR}/include/${ABI}/crypto_box_curve25519xsalsa20poly1305.h" include/
+		cp "${NACLDIR}/include/${ABI}/crypto_scalarmult_curve25519.h" include/
 		echo Done.
 	fi
 	export CPATH="./include/:${CPATH}"
-	export LIBRARY_PATH="/usr/local/lib/:./lib/:${LIBRARY_PATH}"
+	export LIBRARY_PATH="./lib/:${LIBRARY_PATH}"
 else
 	echo Using shared NaCl library.
 	export CPATH="/usr/include/nacl/:${CPATH}"
@@ -78,4 +79,3 @@ if [ -f /etc/network/interfaces ]; then
 	fi
 fi
 
-rm -rf obj tmp
