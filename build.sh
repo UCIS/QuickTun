@@ -1,6 +1,6 @@
 #!/bin/sh
 
-if [ "$(uname -s)" = "OpenBSD" -o "$(uname -s)" = "FreeBSD" ]; then
+if [ "$(uname -s)" = "OpenBSD" -o "$(uname -s)" = "FreeBSD" -o "$(uname -s)" = "NetBSD" ]; then
 	echo "Detected *BSD"
 	tar="gtar"
 elif [ "$(uname -s)" = "SunOS" ]; then
@@ -52,6 +52,8 @@ else
 	echo Using shared NaCl library.
 	export CPATH="/usr/include/nacl/:${CPATH}"
 fi
+
+CFLAGS="$CFLAGS -DQT_VERSION=\"`cat version`\""
 
 echo Building combined binary...
 gcc $CFLAGS -c -DCOMBINED_BINARY	src/proto.raw.c		-o obj/proto.raw.o

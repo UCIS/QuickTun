@@ -42,13 +42,14 @@ char* getenvdeb(const char* name) {
 }
 #endif
 
-int main() {
+int main(int argc, char** argv) {
 	print_header();
 #ifdef DEBIAN_BINARY
 	getconf = getenvdeb;
 #else
 	getconf = getenv;
 #endif
+	if (qtprocessargs(argc, argv) < 0) return -1;
 	char* envval;
 	if (envval = getconf("PROTOCOL")) {
 		if (strcmp(envval, "raw") == 0) {
@@ -58,12 +59,13 @@ int main() {
 		} else if (strcmp(envval, "nacltai") == 0) {
 			return qtrun(&qtproto_nacltai);
 		} else {
-			fprintf(stderr, "Unknown protocol specified: %s\n", envval);
-			return -1;
+			return errorexit("Unknown PROTOCOL specified");
 		}
 	} else if (getconf("PRIVATE_KEY")) {
+		fprintf(stderr, "Warning: PROTOCOL not specified, using insecure nacl0 protocol\n");
 		return qtrun(&qtproto_nacl0);
 	} else {
+		fprintf(stderr, "Warning: PROTOCOL not specified, using insecure raw protocol\n");
 		return qtrun(&qtproto_raw);
 	}
 }

@@ -84,6 +84,8 @@ struct qtsession {
 
 char* (*getconf)(const char*) = getenv;
 int debug = 0;
+static int gargc = 0;
+static char** gargv = NULL;
 
 int errorexit(const char* text) {
 	fprintf(stderr, "%s\n", text);
@@ -95,7 +97,7 @@ int errorexitp(const char* text) {
 }
 
 void print_header() {
-	fprintf(stderr, "UCIS QuickTun (c) 2010 Ivo Smits <Ivo@UCIS.nl>\n");
+	fprintf(stderr, "UCIS QuickTun "QT_VERSION" (c) 2010-2013 Ivo Smits <Ivo@UCIS.nl>\n");
 	fprintf(stderr, "More information: http://wiki.ucis.nl/QuickTun\n");
 }
 
@@ -311,6 +313,35 @@ int qtrun(struct qtproto* p) {
 		}
 	}
 	return 0;
+}
+
+char* getconfcmdargs(const char* name) {
+	int i;
+	for (i = 1; i < gargc - 2; i++) {
+		if (strcmp(gargv[i], "-c")) continue;
+		if (strcmp(gargv[i + 1], name)) continue;
+		return gargv[i + 2];
+	}
+	return NULL;
+}
+
+int qtprocessargs(int argc, char** argv) {
+	int i;
+	for (i = 1; i < argc; i++) {
+		char* a = argv[i];
+		if (!strcmp(a, "-h") || !strcmp(a, "--help")) {
+			return errorexit("Please read the documentation at http://wiki.ucis.nl/QuickTun");
+		} else if (!strcmp(a, "-v") || !strcmp(a, "--version")) {
+			return errorexit("UCIS QuickTun "QT_VERSION);
+		} else if (!strcmp(a, "-c")) {
+			gargc = argc;
+			gargv = argv;
+			getconf = getconfcmdargs;
+			i += 2;
+		} else {
+			return errorexit("Unexpected command line argument");
+		}
+	}
 }
 #endif
 

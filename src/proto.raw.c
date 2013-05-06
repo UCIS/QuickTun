@@ -48,8 +48,9 @@ struct qtproto qtproto_raw = {
 };
 
 #ifndef COMBINED_BINARY
-int main() {
+int main(int argc, char** argv) {
 	print_header();
+	if (qtprocessargs(argc, argv) < 0) return -1;
 	return qtrun(&qtproto_raw);
 }
 #endif
