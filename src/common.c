@@ -27,6 +27,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <fcntl.h>
+#include <pwd.h>
 #ifndef HAVE_NETINET_IN_H
 #include <netinet/in.h>
 #endif
@@ -200,6 +201,18 @@ void hex2bin(unsigned char* dest, unsigned char* src, int count) {
 	}
 }
 
+int drop_privileges() {
+	char* envval;
+	if (envval = getconf("SETUID")) {
+		if (setgroups(0, NULL) == -1) return errorexitp("setgroups");
+		struct passwd *pw = getpwnam(envval);
+		if (!pw) return errorexitp("getpwnam");
+		if (setgid(pw->pw_gid) == -1) return errorexitp("setgid");
+		if (setuid(pw->pw_uid) == -1) return errorexitp("setuid");
+	}
+	chdir("/");
+}
+
 int qtrun(struct qtproto* p) {
 	if (getconf("DEBUG")) debug = 1;
 	struct qtsession session;
@@ -215,6 +228,8 @@ int qtrun(struct qtproto* p) {
 	memset(protocol_data, 0, p->protocol_data_size);
 	session.protocol_data = &protocol_data;
 	if (p->init && p->init(&session) < 0) return -1;
+
+	if (drop_privileges() < 0) return -1;
 
 	fprintf(stderr, "The tunnel is now operational!\n");
 
