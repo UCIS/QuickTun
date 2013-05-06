@@ -164,9 +164,25 @@ static int init(struct qtsession* sess) {
 	if (!(envval = getconf("PUBLIC_KEY"))) return errorexit("Missing PUBLIC_KEY");
 	if (strlen(envval) != 2*crypto_box_curve25519xsalsa20poly1305_PUBLICKEYBYTES) return errorexit("PUBLIC_KEY length");
 	hex2bin(cpublickey, envval, crypto_box_curve25519xsalsa20poly1305_PUBLICKEYBYTES);
-	if (!(envval = getconf("PRIVATE_KEY"))) return errorexit("Missing PRIVATE_KEY");
-	if (strlen(envval) != 2*crypto_box_curve25519xsalsa20poly1305_PUBLICKEYBYTES) return errorexit("PRIVATE_KEY length");
-	hex2bin(csecretkey, envval, crypto_box_curve25519xsalsa20poly1305_SECRETKEYBYTES);
+	if (envval = getconf("PRIVATE_KEY")) {
+		if (strlen(envval) != 2*crypto_box_curve25519xsalsa20poly1305_PUBLICKEYBYTES) return errorexit("PRIVATE_KEY length");
+		hex2bin(csecretkey, envval, crypto_box_curve25519xsalsa20poly1305_SECRETKEYBYTES);
+	} else if (envval = getconf("PRIVATE_KEY_FILE")) {
+		FILE* pkfile = fopen(envval, "rb");
+		if (!pkfile) return errorexitp("Could not open PRIVATE_KEY_FILE");
+		char pktextbuf[crypto_box_curve25519xsalsa20poly1305_SECRETKEYBYTES * 2];
+		size_t pktextsize = fread(pktextbuf, 1, sizeof(pktextbuf), pkfile);
+		if (pktextsize == crypto_box_curve25519xsalsa20poly1305_SECRETKEYBYTES) {
+			memcpy(csecretkey, pktextbuf, crypto_box_curve25519xsalsa20poly1305_SECRETKEYBYTES);
+		} else if (pktextsize = 2 * crypto_box_curve25519xsalsa20poly1305_SECRETKEYBYTES) {
+			hex2bin(csecretkey, pktextbuf, crypto_box_curve25519xsalsa20poly1305_SECRETKEYBYTES);
+		} else {
+			return errorexit("PRIVATE_KEY length");
+		}
+		fclose(pkfile);
+	} else {
+		return errorexit("Missing PRIVATE_KEY");
+	}
 	crypto_box_curve25519xsalsa20poly1305_beforenm(d->cbefore, cpublickey, csecretkey);
 
 	memset(d->cenonce, 0, crypto_box_curve25519xsalsa20poly1305_NONCEBYTES);
