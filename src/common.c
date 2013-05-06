@@ -185,6 +185,7 @@ int init_tuntap(struct qtsession* session) {
 		ioctl(ttfd, TUNSIFHEAD, &i);
 	}
 #endif
+	if (envval = getconf("TUN_UP_SCRIPT")) system(envval);
 	session->fd_dev = ttfd;
 	return ttfd;
 }
