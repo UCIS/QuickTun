@@ -69,6 +69,7 @@ struct qtsession {
 	int fd_dev;
 	int remote_float;
 	struct sockaddr_in remote_addr;
+	int use_pi;
 };
 
 #ifdef COMBINED_BINARY
@@ -142,23 +143,21 @@ int init_udp(struct qtsession* session) {
 	return sfd;
 }
 
-int init_tuntap() {
+int init_tuntap(struct qtsession* session) {
 	char* envval;
 	fprintf(stderr, "Initializing tun/tap device...\n");
 	int ttfd; //Tap device file descriptor
+	int tunmode = 0;
+	if (envval = getconf("TUN_MODE")) tunmode = atoi(envval);
+	session->use_pi = 0;
+	if (tunmode && (envval = getconf("USE_PI"))) session->use_pi = atoi(envval);
 #if defined linux
 	struct ifreq ifr; //required for tun/tap setup
 	memset(&ifr, 0, sizeof(ifr));
 	if ((ttfd = open("/dev/net/tun", O_RDWR)) < 0) return errorexitp("Could not open tun/tap device file");
 	if (envval = getconf("INTERFACE")) strcpy(ifr.ifr_name, envval);
-	if ((envval = getconf("TUN_MODE")) && atoi(envval)) {
-		ifr.ifr_flags = IFF_TUN;
-	} else {
-		ifr.ifr_flags = IFF_TAP;
-	}
-	if (!(envval = getconf("USE_PI")) || !atoi(envval)) {
-		ifr.ifr_flags |= IFF_NO_PI;
-	}
+	ifr.ifr_flags = tunmode ? IFF_TUN : IFF_TAP;
+	if (!session->use_pi) ifr.ifr_flags |= IFF_NO_PI;
 	if (ioctl(ttfd, TUNSETIFF, (void *)&ifr) < 0) return errorexitp("TUNSETIFF ioctl failed");
 #elif defined SOLARIS
 	int ip_fd = -1, if_fd = -1, ppa = 0;
@@ -176,17 +175,14 @@ int init_tuntap() {
 #else
 	if (!(envval = getconf("INTERFACE"))) envval = "/dev/tun0";
 	if ((ttfd = open(envval, O_RDWR)) < 0) return errorexitp("Could not open tun device file");
-	if ((envval = getconf("TUN_MODE")) && atoi(envval)) {
+	if (tunmode) {
 		int i = IFF_POINTOPOINT | IFF_MULTICAST;
 		ioctl(ttfd, TUNSIFMODE, &i);
-		if ((envval = getconf("USE_PI")) && atoi(envval)) {
-			i = 1;
-		} else {
-			i = 0;
-		}
+		i = session->use_pi ? 1 : 0;
 		ioctl(ttfd, TUNSIFHEAD, &i);
 	}
 #endif
+	session->fd_dev = ttfd;
 	return ttfd;
 }
 
@@ -211,11 +207,9 @@ int qtrun(struct qtproto* p) {
 
 	if (init_udp(&session) < 0) return -1;
 	int sfd = session.fd_socket;
-	if (sfd == -1) return -1;
 
-	int ttfd = init_tuntap();
-	if (ttfd == -1) return -1;
-	session.fd_dev = ttfd;
+	if (init_tuntap(&session) < 0) return -1;
+	int ttfd = session.fd_dev;
 
 	char protocol_data[p->protocol_data_size];
 	memset(protocol_data, 0, p->protocol_data_size);
@@ -232,7 +226,10 @@ int qtrun(struct qtproto* p) {
 
 	struct sockaddr_in recvaddr;
 
-	char buffer_raw_a[p->buffersize_raw];
+	int pi_length = 0;
+	if (session.use_pi == 2) pi_length = 4;
+
+	char buffer_raw_a[p->buffersize_raw + pi_length];
 	char buffer_enc_a[p->buffersize_enc];
 	char* buffer_raw = buffer_raw_a;
 	char* buffer_enc = buffer_enc_a;
@@ -243,9 +240,10 @@ int qtrun(struct qtproto* p) {
 		else if (fds[0].revents & (POLLERR | POLLHUP | POLLNVAL)) return errorexit("poll error on tap device");
 		else if (fds[1].revents & (POLLHUP | POLLNVAL)) return errorexit("poll error on udp socket");
 		if (fds[0].revents & POLLIN) {
-			len = read(ttfd, buffer_raw + p->offset_raw, p->buffersize_raw);
+			len = read(ttfd, buffer_raw + p->offset_raw, p->buffersize_raw + pi_length);
+			if (len < pi_length) errorexit("read packet smaller than header from tun device");
 			if (session.remote_float == 0 || session.remote_float == 2) {
-				len = p->encode(&session, buffer_raw, buffer_enc, len);
+				len = p->encode(&session, buffer_raw + pi_length, buffer_enc, len - pi_length);
 				if (len < 0) return len;
 				if (session.remote_float == 0) {
 					len = write(sfd, buffer_enc + p->offset_enc, len);
@@ -273,14 +271,27 @@ int qtrun(struct qtproto* p) {
 				getsockopt(sfd, SOL_SOCKET, SO_ERROR, &out, &len);
 				fprintf(stderr, "Received end of file on udp socket (error %d)\n", out);
 			} else {
-				len = p->decode(&session, buffer_enc, buffer_raw, len);
+				len = p->decode(&session, buffer_enc, buffer_raw + pi_length, len);
 				if (len < 0) return len;
 				if (len != 0 && session.remote_float != 0 && (session.remote_addr.sin_addr.s_addr != recvaddr.sin_addr.s_addr || session.remote_addr.sin_port != recvaddr.sin_port)) {
 					fprintf(stderr, "Remote endpoint has changed to %08X:%d\n", ntohl(recvaddr.sin_addr.s_addr), ntohs(recvaddr.sin_port));
 					session.remote_addr = recvaddr;
 					session.remote_float = 2;
 				}
-				write(ttfd, buffer_raw + p->offset_raw, len);
+				if (session.use_pi == 2) {
+					int ipver = 0;
+					if (len >= 1) ipver = (buffer_raw[p->offset_raw + pi_length] >> 4) & 0xf;
+					int pihdr = 0;
+#if defined linux
+					if (ipver == 4) pihdr = 0x0000 | (0x0008 << 16); //little endian: flags and protocol are swapped
+					else if (ipver == 6) pihdr = 0x0000 | (0xdd86 << 16);
+#else
+					if (ipver == 4) pihdr = htonl(AF_INET);
+					else if (ipver == 6) pihdr = htonl(AF_INET6);
+#endif
+					*(int*)(buffer_raw + p->offset_raw) = ipver;
+				}
+				write(ttfd, buffer_raw + p->offset_raw, len + pi_length);
 			}
 		}
 	}
