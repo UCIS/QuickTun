@@ -144,7 +144,7 @@ struct qt_proto_data_salty_keyset {
 struct qt_proto_data_salty {
 	time_t lastkeyupdate, lastkeyupdatesent;
 	unsigned char controlkey[BEFORENMBYTES];
-	bool controlencoderole;
+	int controlroles;
 	uint64 controldecodetime;
 	uint64 controlencodetime;
 	struct qt_proto_data_salty_keyset* dataencoder;
@@ -226,7 +226,7 @@ static void sendkeyupdate(struct qtsession* sess, bool ack) {
 	d->controlencodetime++;
 	unsigned char nonce[24];
 	memset(nonce, 0, 24);
-	nonce[0] = d->controlencoderole ? 1 : 0;
+	nonce[0] = d->controlroles & 1;
 	encodeuint64(nonce + 16, d->controlencodetime);
 	unsigned char encbuffer[32 + 1 + 32 + 24 + 32 + 24 + 8];
 	if (crypto_box_curve25519xsalsa20poly1305_afternm(encbuffer, buffer, 32 + (1 + 32 + 24 + 32 + 24 + 8), nonce, d->controlkey)) return;
@@ -294,7 +294,8 @@ static int init(struct qtsession* sess) {
 	crypto_box_curve25519xsalsa20poly1305_beforenm(d->controlkey, cpublickey, csecretkey);
 	unsigned char cownpublickey[PUBLICKEYBYTES];
 	crypto_scalarmult_curve25519_base(cownpublickey, csecretkey);
-	d->controlencoderole = memcmp(cownpublickey, cpublickey, PUBLICKEYBYTES) > 0;
+	int role = memcmp(cownpublickey, cpublickey, PUBLICKEYBYTES);
+	d->controlroles = (role == 0) ? 0 : ((role > 0) ? 1 : 2);
 	d->controldecodetime = 0;
 	d->controlencodetime = ((uint64)time(NULL)) << 8;
 	d->datalocalkeyid = 0;
@@ -399,7 +400,7 @@ static int decode(struct qtsession* sess, char* enc, char* raw, int len) {
 		}
 		unsigned char cnonce[NONCEBYTES];
 		memset(cnonce, 0, 24);
-		cnonce[0] = d->controlencoderole ? 0 : 1;
+		cnonce[0] = (d->controlroles >> 1) & 1;
 		memcpy(cnonce + 16, enc + 13, 8);
 		memset(enc + 12 + 1 + 8 - 16, 0, 16);
 		if (crypto_box_curve25519xsalsa20poly1305_open_afternm(raw, enc + 12 + 1 + 8 - 16, len - 1 - 8 + 16, cnonce, d->controlkey)) {

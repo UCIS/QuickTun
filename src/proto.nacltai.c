@@ -196,12 +196,11 @@ static int init(struct qtsession* sess) {
 	} else {
 		fprintf(stderr, "Warning: TIME_WINDOW not set, risking an initial replay attack\n");
 	}
-	if (envval = getconf("ROLE")) {
-		d->cenonce[nonceoffset-1] = atoi(envval) ? 1 : 0;
-	} else {
-		d->cenonce[nonceoffset-1] = memcmp(cownpublickey, cpublickey, crypto_box_curve25519xsalsa20poly1305_PUBLICKEYBYTES) > 0 ? 1 : 0;
-	}
-	d->cdnonce[nonceoffset-1] = d->cenonce[nonceoffset-1] ? 0 : 1;
+	int role = memcmp(cownpublickey, cpublickey, crypto_box_curve25519xsalsa20poly1305_PUBLICKEYBYTES);
+	if (envval = getconf("ROLE")) role = atoi(envval) ? 1 : -1;
+	role = (role == 0) ? 0 : ((role > 0) ? 1 : 2);
+	d->cenonce[nonceoffset-1] = role & 1;
+	d->cdnonce[nonceoffset-1] = (role >> 1) & 1;
 	return 0;
 }
 
