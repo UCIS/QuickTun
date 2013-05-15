@@ -28,6 +28,7 @@
 extern struct qtproto qtproto_raw;
 extern struct qtproto qtproto_nacl0;
 extern struct qtproto qtproto_nacltai;
+extern struct qtproto qtproto_salty;
 
 #ifdef DEBIAN_BINARY
 char* getenvdeb(const char* name) {
@@ -58,6 +59,8 @@ int main(int argc, char** argv) {
 			return qtrun(&qtproto_nacl0);
 		} else if (strcmp(envval, "nacltai") == 0) {
 			return qtrun(&qtproto_nacltai);
+		} else if (strcmp(envval, "salty") == 0) {
+			return qtrun(&qtproto_salty);
 		} else {
 			return errorexit("Unknown PROTOCOL specified");
 		}
