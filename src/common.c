@@ -62,6 +62,7 @@ struct qtproto {
 	int (*decode)(struct qtsession* sess, char* enc, char* raw, int len);
 	int (*init)(struct qtsession* sess);
 	int protocol_data_size;
+	void (*idle)(struct qtsession* sess);
 };
 struct qtsession {
 	struct qtproto protocol;
@@ -71,6 +72,8 @@ struct qtsession {
 	int remote_float;
 	struct sockaddr_in remote_addr;
 	int use_pi;
+	int poll_timeout;
+	void (*sendnetworkpacket)(struct qtsession* sess, char* msg, int len);
 };
 
 #ifdef COMBINED_BINARY
@@ -101,7 +104,7 @@ void print_header() {
 	fprintf(stderr, "More information: http://wiki.ucis.nl/QuickTun\n");
 }
 
-int init_udp(struct qtsession* session) {
+static int init_udp(struct qtsession* session) {
 	char* envval;
 	fprintf(stderr, "Initializing UDP socket...\n");
 	int sfd = socket(PF_INET, SOCK_DGRAM, IPPROTO_UDP);
@@ -146,7 +149,7 @@ int init_udp(struct qtsession* session) {
 	return sfd;
 }
 
-int init_tuntap(struct qtsession* session) {
+static int init_tuntap(struct qtsession* session) {
 	char* envval;
 	fprintf(stderr, "Initializing tun/tap device...\n");
 	int ttfd; //Tap device file descriptor
@@ -204,7 +207,7 @@ void hex2bin(unsigned char* dest, unsigned char* src, int count) {
 	}
 }
 
-int drop_privileges() {
+static int drop_privileges() {
 	char* envval;
 	if (envval = getconf("SETUID")) {
 		if (setgroups(0, NULL) == -1) return errorexitp("setgroups");
@@ -216,13 +219,24 @@ int drop_privileges() {
 	chdir("/");
 }
 
+static void qtsendnetworkpacket(struct qtsession* session, char* msg, int len) {
+	if (session->remote_float == 0) {
+		len = write(session->fd_socket, msg, len);
+	} else if (session->remote_float == 2) {
+		len = sendto(session->fd_socket, msg, len, 0, (struct sockaddr*)&session->remote_addr, sizeof(struct sockaddr_in));
+	}
+}
+
 int qtrun(struct qtproto* p) {
 	if (getconf("DEBUG")) debug = 1;
 	struct qtsession session;
+	session.poll_timeout = -1;
 	session.protocol = *p;
 
 	if (init_udp(&session) < 0) return -1;
 	int sfd = session.fd_socket;
+
+	session.sendnetworkpacket = qtsendnetworkpacket;
 
 	if (init_tuntap(&session) < 0) return -1;
 	int ttfd = session.fd_dev;
@@ -253,21 +267,19 @@ int qtrun(struct qtproto* p) {
 	char* buffer_enc = buffer_enc_a;
 
 	while (1) {
-		int len = poll(fds, 2, -1);
+		int len = poll(fds, 2, session.poll_timeout);
 		if (len < 0) return errorexitp("poll error");
 		else if (fds[0].revents & (POLLERR | POLLHUP | POLLNVAL)) return errorexit("poll error on tap device");
 		else if (fds[1].revents & (POLLHUP | POLLNVAL)) return errorexit("poll error on udp socket");
+		if (len == 0 && p->idle) p->idle(&session);
 		if (fds[0].revents & POLLIN) {
 			len = read(ttfd, buffer_raw + p->offset_raw, p->buffersize_raw + pi_length);
 			if (len < pi_length) errorexit("read packet smaller than header from tun device");
 			if (session.remote_float == 0 || session.remote_float == 2) {
 				len = p->encode(&session, buffer_raw + pi_length, buffer_enc, len - pi_length);
 				if (len < 0) return len;
-				if (session.remote_float == 0) {
-					len = write(sfd, buffer_enc + p->offset_enc, len);
-				} else {
-					len = sendto(sfd, buffer_enc + p->offset_enc, len, 0, (struct sockaddr*)&session.remote_addr, sizeof(session.remote_addr));
-				}
+				if (len == 0) continue; //encoding is not yet possible
+				qtsendnetworkpacket(&session, buffer_enc + p->offset_enc, len);
 			}
 		}
 		if (fds[1].revents & POLLERR) {
@@ -287,18 +299,17 @@ int qtrun(struct qtproto* p) {
 				long long out;
 				len = sizeof(out);
 				getsockopt(sfd, SOL_SOCKET, SO_ERROR, &out, &len);
-				fprintf(stderr, "Received end of file on udp socket (error %d)\n", out);
+				fprintf(stderr, "Received end of file on udp socket (error %lld)\n", out);
 			} else {
 				len = p->decode(&session, buffer_enc, buffer_raw + pi_length, len);
-				if (len < 0) return len;
-				if (len != 0 && session.remote_float != 0 && (session.remote_addr.sin_addr.s_addr != recvaddr.sin_addr.s_addr || session.remote_addr.sin_port != recvaddr.sin_port)) {
+				if (len < 0) continue;
+				if (session.remote_float != 0 && (session.remote_addr.sin_addr.s_addr != recvaddr.sin_addr.s_addr || session.remote_addr.sin_port != recvaddr.sin_port)) {
 					fprintf(stderr, "Remote endpoint has changed to %08X:%d\n", ntohl(recvaddr.sin_addr.s_addr), ntohs(recvaddr.sin_port));
 					session.remote_addr = recvaddr;
 					session.remote_float = 2;
 				}
-				if (session.use_pi == 2) {
-					int ipver = 0;
-					if (len >= 1) ipver = (buffer_raw[p->offset_raw + pi_length] >> 4) & 0xf;
+				if (len > 0 && session.use_pi == 2) {
+					int ipver = (buffer_raw[p->offset_raw + pi_length] >> 4) & 0xf;
 					int pihdr = 0;
 #if defined linux
 					if (ipver == 4) pihdr = 0x0000 | (0x0008 << 16); //little endian: flags and protocol are swapped
@@ -309,14 +320,14 @@ int qtrun(struct qtproto* p) {
 #endif
 					*(int*)(buffer_raw + p->offset_raw) = ipver;
 				}
-				write(ttfd, buffer_raw + p->offset_raw, len + pi_length);
+				if (len > 0) write(ttfd, buffer_raw + p->offset_raw, len + pi_length);
 			}
 		}
 	}
 	return 0;
 }
 
-char* getconfcmdargs(const char* name) {
+static char* getconfcmdargs(const char* name) {
 	int i;
 	for (i = 1; i < gargc - 2; i++) {
 		if (strcmp(gargv[i], "-c")) continue;

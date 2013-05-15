@@ -42,13 +42,13 @@ static int decode(struct qtsession* sess, char* enc, char* raw, int len) {
 	int i;
 	if (len < crypto_box_curve25519xsalsa20poly1305_BOXZEROBYTES) {
 		fprintf(stderr, "Short packet received: %d\n", len);
-		return 0;
+		return -1;
 	}
 	len -= crypto_box_curve25519xsalsa20poly1305_BOXZEROBYTES;
 	memset(enc, 0, crypto_box_curve25519xsalsa20poly1305_BOXZEROBYTES);
 	if (i = crypto_box_curve25519xsalsa20poly1305_open_afternm(raw, enc, len+crypto_box_curve25519xsalsa20poly1305_ZEROBYTES, d->cnonce, d->cbefore)) {
 		fprintf(stderr, "Decryption failed len=%d result=%d\n", len, i);
-		return 0;
+		return -1;
 	}
 	return len;
 }

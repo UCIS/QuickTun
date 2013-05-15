@@ -137,19 +137,19 @@ static int decode(struct qtsession* sess, char* enc, char* raw, int len) {
 	int i;
 	if (len < overhead) {
 		fprintf(stderr, "Short packet received: %d\n", len);
-		return 0;
+		return -1;
 	}
 	len -= overhead;
 	taia_unpack((char*)(enc + crypto_box_curve25519xsalsa20poly1305_BOXZEROBYTES - noncelength), &cdtaic);
 	if (cdtaic.sec.x <= d->cdtaip.sec.x && cdtaic.nano <= d->cdtaip.nano && cdtaic.atto <= d->cdtaip.atto) {
 		fprintf(stderr, "Timestamp going back, ignoring packet\n");
-		return 0;
+		return -1;
 	}
 	memcpy(d->cdnonce + nonceoffset, enc + crypto_box_curve25519xsalsa20poly1305_BOXZEROBYTES - noncelength, noncelength);
 	memset(enc, 0, crypto_box_curve25519xsalsa20poly1305_BOXZEROBYTES);
 	if (i = crypto_box_curve25519xsalsa20poly1305_open_afternm(raw, enc, len + crypto_box_curve25519xsalsa20poly1305_ZEROBYTES, d->cdnonce, d->cbefore)) {
 		fprintf(stderr, "Decryption failed len=%d result=%d\n", len, i);
-		return 0;
+		return -1;
 	}
 	d->cdtaip = cdtaic;
 	if (debug) fprintf(stderr, "Decoded packet of %d bytes from %p to %p\n", len, enc, raw);
