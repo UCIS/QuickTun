@@ -29,100 +29,43 @@
 #include <sys/types.h>
 #include <sys/time.h>
 
-#define uint64 unsigned long long //typedef unsigned long long uint64;
-
-struct tai {
-  uint64 x;
-};
-struct taia {
-  struct tai sec;
-  unsigned long nano; /* 0...999999999 */
-  unsigned long atto; /* 0...999999999 */
-};
-
 struct qt_proto_data_nacltai {
 	unsigned char cenonce[crypto_box_curve25519xsalsa20poly1305_NONCEBYTES], cdnonce[crypto_box_curve25519xsalsa20poly1305_NONCEBYTES];
 	unsigned char cbefore[crypto_box_curve25519xsalsa20poly1305_BEFORENMBYTES];
-	struct taia cdtaip, cdtaie;
+	unsigned char cdtaipp[16];
 };
 
 #define noncelength 16
 #define nonceoffset (crypto_box_curve25519xsalsa20poly1305_NONCEBYTES - noncelength)
-/*static unsigned char cbefore[crypto_box_curve25519xsalsa20poly1305_BEFORENMBYTES];
-static unsigned char buffer1[MAX_PACKET_LEN+crypto_box_curve25519xsalsa20poly1305_ZEROBYTES], buffer2[MAX_PACKET_LEN+crypto_box_curve25519xsalsa20poly1305_ZEROBYTES];
-static const unsigned char* buffer1offset = buffer1 + crypto_box_curve25519xsalsa20poly1305_ZEROBYTES;
-static const unsigned char* buffer2offset = buffer2 + crypto_box_curve25519xsalsa20poly1305_BOXZEROBYTES - noncelength;*/
 static const int overhead                 = crypto_box_curve25519xsalsa20poly1305_BOXZEROBYTES + noncelength;
 
-void tai_pack(char *s, struct tai *t) {
-  uint64 x;
-  x = t->x;
-  s[7] = x & 255; x >>= 8;
-  s[6] = x & 255; x >>= 8;
-  s[5] = x & 255; x >>= 8;
-  s[4] = x & 255; x >>= 8;
-  s[3] = x & 255; x >>= 8;
-  s[2] = x & 255; x >>= 8;
-  s[1] = x & 255; x >>= 8;
-  s[0] = x;
-}
-void tai_unpack(char *s, struct tai *t) {
-  uint64 x;
-  x = (unsigned char) s[0];
-  x <<= 8; x += (unsigned char) s[1];
-  x <<= 8; x += (unsigned char) s[2];
-  x <<= 8; x += (unsigned char) s[3];
-  x <<= 8; x += (unsigned char) s[4];
-  x <<= 8; x += (unsigned char) s[5];
-  x <<= 8; x += (unsigned char) s[6];
-  x <<= 8; x += (unsigned char) s[7];
-  t->x = x;
-}
-void taia_pack(char *s, struct taia *t) {
-  unsigned long x;
-  tai_pack(s,&t->sec);
-  s += 8;
-  x = t->atto;
-  s[7] = x & 255; x >>= 8;
-  s[6] = x & 255; x >>= 8;
-  s[5] = x & 255; x >>= 8;
-  s[4] = x;
-  x = t->nano;
-  s[3] = x & 255; x >>= 8;
-  s[2] = x & 255; x >>= 8;
-  s[1] = x & 255; x >>= 8;
-  s[0] = x;
-} 
-void taia_unpack(char *s, struct taia *t) {
-  unsigned long x;
-  tai_unpack(s,&t->sec);
-  s += 8;
-  x = (unsigned char) s[4];
-  x <<= 8; x += (unsigned char) s[5];
-  x <<= 8; x += (unsigned char) s[6];
-  x <<= 8; x += (unsigned char) s[7];
-  t->atto = x;
-  x = (unsigned char) s[0];
-  x <<= 8; x += (unsigned char) s[1];
-  x <<= 8; x += (unsigned char) s[2];
-  x <<= 8; x += (unsigned char) s[3];
-  t->nano = x;
+static void taia_now_packed(unsigned char* b, int secoffset) {
+	struct timeval now;
+	gettimeofday(&now, NULL);
+	u_int64_t sec = 4611686018427387914ULL + (u_int64_t)now.tv_sec + secoffset;
+	b[0] = (sec >> 56) & 0xff;
+	b[1] = (sec >> 48) & 0xff;
+	b[2] = (sec >> 40) & 0xff;
+	b[3] = (sec >> 32) & 0xff;
+	b[4] = (sec >> 24) & 0xff;
+	b[5] = (sec >> 16) & 0xff;
+	b[6] = (sec >> 8) & 0xff;
+	b[7] = (sec >> 0) & 0xff;
+	u_int32_t nano = 1000 * now.tv_usec + 500;
+	b[8] = (nano >> 24) & 0xff;
+	b[9] = (nano >> 16) & 0xff;
+	b[10] = (nano >> 8) & 0xff;
+	b[11] = (nano >> 0) & 0xff;
+	++b[15] == 0 && ++b[14] == 0 && ++b[13] == 0 && ++b[12] == 0;
 }
 
-void taia_now(struct taia *t) {
-  struct timeval now;
-  gettimeofday(&now,(struct timezone *) 0);
-  t->sec.x = 4611686018427387914ULL + (uint64) now.tv_sec;
-  t->nano = 1000 * now.tv_usec + 500;
-  t->atto++;
-}
+//Packet format: <16 bytes taia packed timestamp><16 bytes checksum><n bytes encrypted data>
 
 static int encode(struct qtsession* sess, char* raw, char* enc, int len) {
 	if (debug) fprintf(stderr, "Encoding packet of %d bytes from %p to %p\n", len, raw, enc);
 	struct qt_proto_data_nacltai* d = (struct qt_proto_data_nacltai*)sess->protocol_data;
 	memset(raw, 0, crypto_box_curve25519xsalsa20poly1305_ZEROBYTES);
-	taia_now(&d->cdtaie);
-	taia_pack(d->cenonce + nonceoffset, &(d->cdtaie));
+	taia_now_packed(d->cenonce + nonceoffset, 0);
 	if (crypto_box_curve25519xsalsa20poly1305_afternm(enc, raw, len + crypto_box_curve25519xsalsa20poly1305_ZEROBYTES, d->cenonce, d->cbefore)) return errorexit("Encryption failed");
 	memcpy((void*)(enc + crypto_box_curve25519xsalsa20poly1305_BOXZEROBYTES - noncelength), d->cenonce + nonceoffset, noncelength);
 	len += overhead;
@@ -133,25 +76,23 @@ static int encode(struct qtsession* sess, char* raw, char* enc, int len) {
 static int decode(struct qtsession* sess, char* enc, char* raw, int len) {
 	if (debug) fprintf(stderr, "Decoding packet of %d bytes from %p to %p\n", len, enc, raw);
 	struct qt_proto_data_nacltai* d = (struct qt_proto_data_nacltai*)sess->protocol_data;
-	struct taia cdtaic;
 	int i;
 	if (len < overhead) {
 		fprintf(stderr, "Short packet received: %d\n", len);
 		return -1;
 	}
 	len -= overhead;
-	taia_unpack((char*)(enc + crypto_box_curve25519xsalsa20poly1305_BOXZEROBYTES - noncelength), &cdtaic);
-	if (cdtaic.sec.x <= d->cdtaip.sec.x && cdtaic.nano <= d->cdtaip.nano && cdtaic.atto <= d->cdtaip.atto) {
+	if (memcmp(enc, d->cdtaipp, 16) <= 0) {
 		fprintf(stderr, "Timestamp going back, ignoring packet\n");
 		return -1;
 	}
-	memcpy(d->cdnonce + nonceoffset, enc + crypto_box_curve25519xsalsa20poly1305_BOXZEROBYTES - noncelength, noncelength);
+	memcpy(d->cdnonce + nonceoffset, enc, noncelength);
 	memset(enc, 0, crypto_box_curve25519xsalsa20poly1305_BOXZEROBYTES);
 	if (i = crypto_box_curve25519xsalsa20poly1305_open_afternm(raw, enc, len + crypto_box_curve25519xsalsa20poly1305_ZEROBYTES, d->cdnonce, d->cbefore)) {
 		fprintf(stderr, "Decryption failed len=%d result=%d\n", len, i);
 		return -1;
 	}
-	d->cdtaip = cdtaic;
+	memcpy(d->cdtaipp, d->cdnonce + nonceoffset, 16);
 	if (debug) fprintf(stderr, "Decoded packet of %d bytes from %p to %p\n", len, enc, raw);
 	return len;
 }
@@ -187,12 +128,12 @@ static int init(struct qtsession* sess) {
 
 	memset(d->cenonce, 0, crypto_box_curve25519xsalsa20poly1305_NONCEBYTES);
 	memset(d->cdnonce, 0, crypto_box_curve25519xsalsa20poly1305_NONCEBYTES);
+	memset(d->cdtaipp, 0, 16);
 
 	crypto_scalarmult_curve25519_base(cownpublickey, csecretkey);
 
 	if (envval = getconf("TIME_WINDOW")) {
-		taia_now(&d->cdtaip);
-		d->cdtaip.sec.x -= atol(envval);
+		taia_now_packed(d->cdtaipp, -atol(envval));
 	} else {
 		fprintf(stderr, "Warning: TIME_WINDOW not set, risking an initial replay attack\n");
 	}
