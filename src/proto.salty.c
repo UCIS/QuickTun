@@ -245,8 +245,6 @@ static bool beginkeyupdate(struct qtsession* sess) {
 	if (!randombytes(enckey->privatekey, PRIVATEKEYBYTES)) return false;
 	crypto_scalarmult_curve25519_base(enckey->publickey, enckey->privatekey);
 	memset(enckey->nonce + 20, 0, 4);
-	enckey->nonce[20] = 0x0F; //debugging
-	enckey->nonce[21] = 0xFF; //debugging
 	if (debug) dumphex("New public key", enckey->publickey, 32);
 	if (debug) dumphex("New base nonce", enckey->nonce, 24);
 	initdecoder(&d->datadecoders[(d->dataremotekeyid << 1) | d->datalocalkeynextid], d->dataremotekey, enckey->privatekey, d->dataremotenonce);
@@ -257,9 +255,9 @@ static bool beginkeyupdate(struct qtsession* sess) {
 static void beginkeyupdateifnecessary(struct qtsession* sess) {
 	struct qt_proto_data_salty* d = (struct qt_proto_data_salty*)sess->protocol_data;
 	time_t t = time(NULL);
-	if (t - d->lastkeyupdate > 10) {
+	if (t - d->lastkeyupdate > 300) {
 		beginkeyupdate(sess);
-	} else if (d->datalocalkeynextid != -1 && t - d->lastkeyupdatesent > 0) {
+	} else if (d->datalocalkeynextid != -1 && t - d->lastkeyupdatesent > 1) {
 		sendkeyupdate(sess, false);
 	}
 }
@@ -303,7 +301,7 @@ static int init(struct qtsession* sess) {
 	d->dataremotekeyid = 0;
 	beginkeyupdate(sess);
 	d->datalocalkeyid = d->datalocalkeynextid;
-	sess->poll_timeout = 1000;
+	sess->poll_timeout = 5000;
 	return 0;
 }
 
