@@ -415,6 +415,10 @@ static int decode(struct qtsession* sess, char* enc, char* raw, int len) {
 		memcpy(d->dataremotekey, raw + 32 + 1, 32);
 		memcpy(d->dataremotenonce, raw + 32 + 1 + 32, 24);
 		uint64 lexpectts = decodeuint64(raw + 32 + 1 + 32 + 24 + 32 + 24);
+		if (lexpectts > d->controlencodetime) {
+			fprintf(stderr, "Remote expects newer control timestamp (%llu > %llu), moving forward.\n", lexpectts, d->controlencodetime);
+			d->controlencodetime = lexpectts;
+		}
 		struct qt_proto_data_salty_keyset* enckey = &d->datalocalkeys[lkeyid];
 		if (memcmp(enckey->publickey, raw + 32 + 1 + 32 + 24, 32) || memcmp(enckey->nonce, raw + 32 + 1 + 32 + 24 + 32, 20)) {
 			dosendkeyupdate |= 2;
