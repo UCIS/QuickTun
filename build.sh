@@ -1,4 +1,5 @@
 #!/bin/sh
+set -e
 
 if [ "$(uname -s)" = "OpenBSD" -o "$(uname -s)" = "FreeBSD" -o "$(uname -s)" = "NetBSD" ]; then
 	echo "Detected *BSD"
@@ -63,6 +64,7 @@ gcc $CFLAGS -c -DCOMBINED_BINARY	src/proto.salty.c	-o obj/proto.salty.o
 gcc $CFLAGS -c -DCOMBINED_BINARY	src/run.combined.c	-o obj/run.combined.o
 gcc $CFLAGS -c 				src/common.c		-o obj/common.o
 gcc $CFLAGS -o out/quicktun.combined obj/common.o obj/run.combined.o obj/proto.raw.o obj/proto.nacl0.o obj/proto.nacltai.o obj/proto.salty.o -lnacl $LDFLAGS
+ln out/quicktun.combined out/quicktun
 
 echo Building single protocol binaries...
 gcc $CFLAGS -o out/quicktun.raw		src/proto.raw.c 		$LDFLAGS

@@ -1,4 +1,5 @@
 #!/bin/sh
+set -e
 VERSION=`cat ../version`-0
 ARCH=`dpkg --print-architecture`
 rm -r data 2>/dev/null
@@ -14,5 +15,6 @@ cp ../out/quicktun.nacl0 data/usr/sbin/
 cp ../out/quicktun.nacltai data/usr/sbin/
 cp ../out/quicktun.debian data/usr/sbin/
 cp ../out/quicktun.keypair data/usr/sbin/
+cp ../out/quicktun data/usr/sbin/
 fakeroot dpkg-deb --build data quicktun-${VERSION}_${ARCH}.deb
 mv quicktun*.deb ../out/
