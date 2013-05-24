@@ -51,6 +51,12 @@
 
 #define MAX_PACKET_LEN (ETH_FRAME_LEN+4) //Some space for optional packet information
 
+typedef union {
+	struct sockaddr any;
+	struct sockaddr_in ip4;
+	struct sockaddr_in6 ip6;
+} sockaddr_any;
+
 struct qtsession;
 struct qtproto {
 	int encrypted;
@@ -70,7 +76,7 @@ struct qtsession {
 	int fd_socket;
 	int fd_dev;
 	int remote_float;
-	struct sockaddr_in remote_addr;
+	sockaddr_any remote_addr;
 	int use_pi;
 	int poll_timeout;
 	void (*sendnetworkpacket)(struct qtsession* sess, char* msg, int len);
@@ -104,47 +110,95 @@ void print_header() {
 	fprintf(stderr, "More information: http://wiki.ucis.nl/QuickTun\n");
 }
 
+static int is_all_zero(void* buf, int size) {
+	int i;
+	char* bb = (char*)buf;
+	for (i = 0; i < size; i++) if (bb[i] != 0) return 0;
+	return 1;
+}
+static int sockaddr_is_zero_address(sockaddr_any* sa) {
+	int af = sa->any.sa_family;
+	if (af == AF_INET) return is_all_zero(&sa->ip4.sin_addr, sizeof(struct in_addr));
+	if (af == AF_INET6) return is_all_zero(&sa->ip6.sin6_addr, sizeof(struct in6_addr));
+	return is_all_zero(sa, sizeof(sockaddr_any));
+}
+static int sockaddr_set_port(sockaddr_any* sa, int port) {
+	port = htons(port);
+	int af = sa->any.sa_family;
+	if (af == AF_INET) sa->ip4.sin_port = port;
+	else if (af == AF_INET6) sa->ip6.sin6_port = port;
+	else return errorexit("Unknown address family");
+	return 0;
+}
+static int sockaddr_equal(sockaddr_any* a, sockaddr_any* b) {
+	if (a->any.sa_family != b->any.sa_family) return 0;
+	if (a->any.sa_family == AF_INET) return a->ip4.sin_port == b->ip4.sin_port && a->ip4.sin_addr.s_addr == b->ip4.sin_addr.s_addr;
+	if (a->any.sa_family == AF_INET6) return a->ip6.sin6_port == b->ip6.sin6_port && memcmp(&a->ip6.sin6_addr, &b->ip6.sin6_addr, sizeof(struct in6_addr)) == 0 && a->ip6.sin6_scope_id == b->ip6.sin6_scope_id;
+	return memcmp(a, b, sizeof(sockaddr_any)) == 0;
+}
+static void sockaddr_to_string(sockaddr_any* sa, char* str, int strbuflen) {
+	if (sa->any.sa_family == AF_INET) {
+		if (!inet_ntop(AF_INET, &sa->ip4.sin_addr, str, strbuflen)) str[0] = 0;
+		int i = strlen(str);
+		snprintf(str + i, strbuflen - i, ":%u", ntohs(sa->ip4.sin_port));
+	} else if (sa->any.sa_family == AF_INET6) {
+		if (!inet_ntop(AF_INET6, &sa->ip6.sin6_addr, str, strbuflen)) str[0] = 0;
+		int i = strlen(str);
+		snprintf(str + i, strbuflen - i, "%%%d:%u", sa->ip6.sin6_scope_id, ntohs(sa->ip6.sin6_port));
+	} else {
+		strncpy(str, "Unknown AF", strbuflen);
+	}
+	str[strbuflen - 1] = 0;
+}
+
 static int init_udp(struct qtsession* session) {
 	char* envval;
 	fprintf(stderr, "Initializing UDP socket...\n");
-	int sfd = socket(PF_INET, SOCK_DGRAM, IPPROTO_UDP);
-	if (sfd < 0) return errorexitp("Could not create UDP socket");
-	struct sockaddr_in udpaddr;
-	struct hostent *he;
-	udpaddr.sin_family = AF_INET;
-	udpaddr.sin_addr.s_addr = INADDR_ANY;
-	udpaddr.sin_port = htons(2998);
+	struct addrinfo *ai_local = NULL, *ai_remote = NULL;
+	unsigned short af = 0;
 	if (envval = getconf("LOCAL_ADDRESS")) {
-		he = gethostbyname(envval);
-		if (!he) return errorexit("bind address lookup failed");
-		else if (!he->h_addr_list[0]) return errorexit("no address to bind to");
-		udpaddr.sin_addr.s_addr = *((unsigned long*)he->h_addr_list[0]);
-		udpaddr.sin_family = he->h_addrtype;
+		if (getaddrinfo(envval, NULL, NULL, &ai_local)) return errorexitp("getaddrinfo(LOCAL_ADDRESS)");
+		if (!ai_local) return errorexit("LOCAL_ADDRESS lookup failed");
+		if (ai_local->ai_addrlen > sizeof(sockaddr_any)) return errorexit("Resolved LOCAL_ADDRESS is too big");
+		af = ai_local->ai_family;
 	}
-	if (envval = getconf("LOCAL_PORT")) {
-		udpaddr.sin_port = htons(atoi(envval));
+	if (envval = getconf("REMOTE_ADDRESS")) {
+		if (getaddrinfo(envval, NULL, NULL, &ai_remote)) return errorexitp("getaddrinfo(REMOTE_ADDRESS)");
+		if (!ai_remote) return errorexit("REMOTE_ADDRESS lookup failed");
+		if (ai_remote->ai_addrlen > sizeof(sockaddr_any)) return errorexit("Resolved REMOTE_ADDRESS is too big");
+		if (af && af != ai_remote->ai_family) return errorexit("Address families do not match");
+		af = ai_remote->ai_family;
 	}
-	if (bind(sfd, (struct sockaddr*)&udpaddr, sizeof(struct sockaddr_in))) return errorexitp("Could not bind socket");
-	if (!(envval = getconf("REMOTE_ADDRESS"))) {
+	if (!af) af = AF_INET;
+	int sfd = socket(af, SOCK_DGRAM, IPPROTO_UDP);
+	if (sfd < 0) return errorexitp("Could not create UDP socket");
+	sockaddr_any udpaddr;
+	memset(&udpaddr, 0, sizeof(udpaddr));
+	udpaddr.any.sa_family = af;
+	if (ai_local) memcpy(&udpaddr, ai_local->ai_addr, ai_local->ai_addrlen);
+	int port = 2998;
+	if (envval = getconf("LOCAL_PORT")) port = atoi(envval);
+	if (sockaddr_set_port(&udpaddr, port)) return -1;
+	if (bind(sfd, (struct sockaddr*)&udpaddr, sizeof(udpaddr))) return errorexitp("Could not bind socket");
+	memset(&udpaddr, 0, sizeof(udpaddr));
+	udpaddr.any.sa_family = af;
+	if (ai_remote) memcpy(&udpaddr, ai_remote->ai_addr, ai_remote->ai_addrlen);
+	if (!ai_remote || sockaddr_is_zero_address(&udpaddr)) {
 		session->remote_float = 1;
-		//return errorexit("Missing REMOTE_ADDRESS");
 	} else {
 		session->remote_float = getconf("REMOTE_FLOAT") ? 1 : 0;
-		he = gethostbyname(envval);
-		if (!he) return errorexit("remote address lookup failed");
-		else if (!he->h_addr_list[0]) return errorexit("no address to connect to");
-		udpaddr.sin_family = he->h_addrtype;
-		udpaddr.sin_addr.s_addr = *((unsigned long*)he->h_addr_list[0]);
-		if (udpaddr.sin_addr.s_addr == 0) {
-			session->remote_float = 1;
+		port = 2998;
+		if (envval = getconf("REMOTE_PORT")) port = atoi(envval);
+		if (sockaddr_set_port(&udpaddr, port)) return -1;
+		session->remote_addr = udpaddr;
+		if (session->remote_float) {
+			session->remote_float = 2;
 		} else {
-			if (envval = getconf("REMOTE_PORT")) {
-				udpaddr.sin_port = htons(atoi(envval));
-			}
-			if (connect(sfd, (struct sockaddr*)&udpaddr, sizeof(struct sockaddr_in))) return errorexitp("Could not connect socket");
-			session->remote_addr = udpaddr;
+			if (connect(sfd, (struct sockaddr*)&udpaddr, sizeof(udpaddr))) return errorexitp("Could not connect socket");
 		}
 	}
+	if (ai_local) freeaddrinfo(ai_local);
+	if (ai_remote) freeaddrinfo(ai_remote);
 	session->fd_socket = sfd;
 	return sfd;
 }
@@ -223,7 +277,7 @@ static void qtsendnetworkpacket(struct qtsession* session, char* msg, int len) {
 	if (session->remote_float == 0) {
 		len = write(session->fd_socket, msg, len);
 	} else if (session->remote_float == 2) {
-		len = sendto(session->fd_socket, msg, len, 0, (struct sockaddr*)&session->remote_addr, sizeof(struct sockaddr_in));
+		len = sendto(session->fd_socket, msg, len, 0, (struct sockaddr*)&session->remote_addr, sizeof(sockaddr_any));
 	}
 }
 
@@ -256,8 +310,6 @@ int qtrun(struct qtproto* p) {
 	fds[1].fd = sfd;
 	fds[1].events = POLLIN;
 
-	struct sockaddr_in recvaddr;
-
 	int pi_length = 0;
 	if (session.use_pi == 2) pi_length = 4;
 
@@ -289,6 +341,7 @@ int qtrun(struct qtproto* p) {
 			fprintf(stderr, "Received error %d on udp socket\n", out);
 		}
 		if (fds[1].revents & POLLIN) {
+			sockaddr_any recvaddr;
 			socklen_t recvaddr_len = sizeof(recvaddr);
 			if (session.remote_float == 0) {
 			 	len = read(sfd, buffer_enc + p->offset_enc, p->buffersize_enc);
@@ -303,8 +356,10 @@ int qtrun(struct qtproto* p) {
 			} else {
 				len = p->decode(&session, buffer_enc, buffer_raw + pi_length, len);
 				if (len < 0) continue;
-				if (session.remote_float != 0 && (session.remote_addr.sin_addr.s_addr != recvaddr.sin_addr.s_addr || session.remote_addr.sin_port != recvaddr.sin_port)) {
-					fprintf(stderr, "Remote endpoint has changed to %08X:%d\n", ntohl(recvaddr.sin_addr.s_addr), ntohs(recvaddr.sin_port));
+				if (session.remote_float != 0 && !sockaddr_equal(&session.remote_addr, &recvaddr)) {
+					char epname[INET6_ADDRSTRLEN + 1 + 2 + 1 + 5]; //addr%scope:port
+					sockaddr_to_string(&recvaddr, epname, sizeof(epname));
+					fprintf(stderr, "Remote endpoint has changed to %s\n", epname);
 					session.remote_addr = recvaddr;
 					session.remote_float = 2;
 				}
