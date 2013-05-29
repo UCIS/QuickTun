@@ -263,14 +263,20 @@ void hex2bin(unsigned char* dest, unsigned char* src, int count) {
 
 static int drop_privileges() {
 	char* envval;
+	struct passwd *pw = NULL;
 	if (envval = getconf("SETUID")) {
-		if (setgroups(0, NULL) == -1) return errorexitp("setgroups");
-		struct passwd *pw = getpwnam(envval);
+		pw = getpwnam(envval);
 		if (!pw) return errorexitp("getpwnam");
+	}
+	if (envval = getconf("CHROOT")) {
+		if (chroot(envval)) return errorexitp("chroot");
+		if (chdir("/")) return errorexitp("chdir /");
+	}
+	if (pw) {
+		if (setgroups(0, NULL) == -1) return errorexitp("setgroups");
 		if (setgid(pw->pw_gid) == -1) return errorexitp("setgid");
 		if (setuid(pw->pw_uid) == -1) return errorexitp("setuid");
 	}
-	chdir("/");
 }
 
 static void qtsendnetworkpacket(struct qtsession* session, char* msg, int len) {
