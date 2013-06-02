@@ -4,7 +4,12 @@ test -z "${IF_QT_NO_PRECREATE}" || exit 0
 if [ -x /usr/sbin/openvpn ]; then
 	/usr/sbin/openvpn --rmtun --dev "${IFACE}"
 elif [ -x /sbin/ip ] && /sbin/ip tuntap 2>&1 >/dev/null; then
-	/sbin/ip tuntap del dev "${IFACE}"
+	if [ -n "${IF_QT_TUN_MODE}" ] && [ "${IF_QT_TUN_MODE}" = "1" ]; then
+	        DEVTYPE="tun"
+	else
+	        DEVTYPE="tap"
+	fi
+	/sbin/ip tuntap del dev "${IFACE}" mode "${DEVTYPE}"
 elif [ -x /usr/sbin/tunctl ]; then
 	/usr/sbin/tunctl -d "${IFACE}"
 fi
