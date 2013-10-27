@@ -2,7 +2,7 @@
 set -e
 VERSION=`cat ../version`-0
 ARCH=`dpkg --print-architecture`
-rm -r data 2>/dev/null
+rm -r data 2>/dev/null || true
 cp -r static data
 mkdir -p data/usr data/usr/sbin data/DEBIAN
 sed "s/%ARCHITECTURE%/${ARCH}/" -i data/DEBIAN/control

@@ -24,10 +24,25 @@ mkdir -p out
 echo Creating source archive...
 $tar --transform "s,^,quicktun-`cat version`/," -czf "out/quicktun-`cat version`.tgz" build.sh clean.sh debian src version --exclude "debian/data"
 
-mkdir -p obj tmp
+mkdir -p obj tmp tmp/include
 
 export LIBRARY_PATH="/usr/local/lib/:${LIBRARY_PATH}"
-if [ -z "${NACL_SHARED}" ]; then
+
+echo '#include <sodium/crypto_box_curve25519xsalsa20poly1305.h>' > tmp/libtest1.c
+echo '#include <nacl/crypto_box_curve25519xsalsa20poly1305.h>' > tmp/libtest2.c
+if gcc -shared -lsodium tmp/libtest1.c -o tmp/libtest 2>/dev/null; then
+	echo Using shared libsodium.
+	echo '#include <sodium/crypto_box_curve25519xsalsa20poly1305.h>' > tmp/include/crypto_box_curve25519xsalsa20poly1305.h
+	echo '#include <sodium/crypto_scalarmult_curve25519.h>' > tmp/include/crypto_scalarmult_curve25519.h
+	export CPATH="./tmp/include/:${CPATH}"
+	export CRYPTLIB="sodium"
+elif gcc -shared -lnacl tmp/libtest2.c -o tmp/libtest 2>/dev/null; then
+	echo Using shared libnacl.
+	echo '#include <nacl/crypto_box_curve25519xsalsa20poly1305.h>' > tmp/include/crypto_box_curve25519xsalsa20poly1305.h
+	echo '#include <nacl/crypto_scalarmult_curve25519.h>' > tmp/include/crypto_scalarmult_curve25519.h
+	export CPATH="./tmp/include/:${CPATH}"
+	export CRYPTLIB="nacl"
+else
 	mkdir -p lib include
 	echo Checking for NaCl library...
 	if [ -e lib/libnacl.a -a -e include/crypto_box_curve25519xsalsa20poly1305.h -a -e include/crypto_scalarmult_curve25519.h ]; then
@@ -49,9 +64,7 @@ if [ -z "${NACL_SHARED}" ]; then
 	fi
 	export CPATH="./include/:${CPATH}"
 	export LIBRARY_PATH="./lib/:${LIBRARY_PATH}"
-else
-	echo Using shared NaCl library.
-	export CPATH="/usr/include/nacl/:${CPATH}"
+	export CRYPTLIB="nacl"
 fi
 
 CFLAGS="$CFLAGS -DQT_VERSION=\"`cat version`\""
@@ -62,21 +75,21 @@ gcc $CFLAGS -c -DCOMBINED_BINARY	src/proto.nacl0.c	-o obj/proto.nacl0.o
 gcc $CFLAGS -c -DCOMBINED_BINARY	src/proto.nacltai.c	-o obj/proto.nacltai.o
 gcc $CFLAGS -c -DCOMBINED_BINARY	src/proto.salty.c	-o obj/proto.salty.o
 gcc $CFLAGS -c -DCOMBINED_BINARY	src/run.combined.c	-o obj/run.combined.o
-gcc $CFLAGS -c 				src/common.c		-o obj/common.o
-gcc $CFLAGS -o out/quicktun.combined obj/common.o obj/run.combined.o obj/proto.raw.o obj/proto.nacl0.o obj/proto.nacltai.o obj/proto.salty.o -lnacl $LDFLAGS
+gcc $CFLAGS -c				src/common.c		-o obj/common.o
+gcc $CFLAGS -o out/quicktun.combined obj/common.o obj/run.combined.o obj/proto.raw.o obj/proto.nacl0.o obj/proto.nacltai.o obj/proto.salty.o -l$CRYPTLIB $LDFLAGS
 ln out/quicktun.combined out/quicktun
 
 echo Building single protocol binaries...
-gcc $CFLAGS -o out/quicktun.raw		src/proto.raw.c 		$LDFLAGS
-gcc $CFLAGS -o out/quicktun.nacl0	src/proto.nacl0.c	-lnacl	$LDFLAGS
-gcc $CFLAGS -o out/quicktun.nacltai	src/proto.nacltai.c	-lnacl	$LDFLAGS
-gcc $CFLAGS -o out/quicktun.salty	src/proto.salty.c	-lnacl	$LDFLAGS
-gcc $CFLAGS -o out/quicktun.keypair	src/keypair.c		-lnacl	$LDFLAGS
+gcc $CFLAGS -o out/quicktun.raw		src/proto.raw.c				$LDFLAGS
+gcc $CFLAGS -o out/quicktun.nacl0	src/proto.nacl0.c	-l$CRYPTLIB	$LDFLAGS
+gcc $CFLAGS -o out/quicktun.nacltai	src/proto.nacltai.c	-l$CRYPTLIB	$LDFLAGS
+gcc $CFLAGS -o out/quicktun.salty	src/proto.salty.c	-l$CRYPTLIB	$LDFLAGS
+gcc $CFLAGS -o out/quicktun.keypair	src/keypair.c		-l$CRYPTLIB	$LDFLAGS
 
 if [ -f /etc/network/interfaces ]; then
 	echo Building debian binary...
 	gcc $CFLAGS -c -DCOMBINED_BINARY -DDEBIAN_BINARY src/run.combined.c -o obj/run.debian.o
-	gcc $CFLAGS -o out/quicktun.debian obj/common.o obj/run.debian.o obj/proto.raw.o obj/proto.nacl0.o obj/proto.nacltai.o obj/proto.salty.o -lnacl $LDFLAGS
+	gcc $CFLAGS -o out/quicktun.debian obj/common.o obj/run.debian.o obj/proto.raw.o obj/proto.nacl0.o obj/proto.nacltai.o obj/proto.salty.o -l$CRYPTLIB $LDFLAGS
 	if [ -x /usr/bin/dpkg-deb -a -x /usr/bin/fakeroot ]; then
 		echo -n Building debian package...
 		cd debian

@@ -29,10 +29,14 @@
 #include <sys/types.h>
 #include <sys/time.h>
 
+struct packedtaia {
+	unsigned char buffer[16];
+};
+
 struct qt_proto_data_nacltai {
 	unsigned char cenonce[crypto_box_curve25519xsalsa20poly1305_NONCEBYTES], cdnonce[crypto_box_curve25519xsalsa20poly1305_NONCEBYTES];
 	unsigned char cbefore[crypto_box_curve25519xsalsa20poly1305_BEFORENMBYTES];
-	unsigned char cdtaipp[16];
+	struct packedtaia cdtailog[5];
 };
 
 #define noncelength 16
@@ -82,7 +86,17 @@ static int decode(struct qtsession* sess, char* enc, char* raw, int len) {
 		return -1;
 	}
 	len -= overhead;
-	if (memcmp(enc, d->cdtaipp, 16) <= 0) {
+	struct packedtaia* tailog = &d->cdtailog[0];
+	struct packedtaia* taiold = tailog;
+	for (i = 0; i < 5; i++) {
+		if (memcmp(enc, tailog, 16) == 0) {
+			fprintf(stderr, "Duplicate timestamp received\n");
+			return -1;
+		}
+		if (memcmp(tailog, taiold, 16) < 0) taiold = tailog;
+		tailog++;
+	}
+	if (memcmp(enc, taiold, 16) <= 0) {
 		fprintf(stderr, "Timestamp going back, ignoring packet\n");
 		return -1;
 	}
@@ -92,7 +106,7 @@ static int decode(struct qtsession* sess, char* enc, char* raw, int len) {
 		fprintf(stderr, "Decryption failed len=%d result=%d\n", len, i);
 		return -1;
 	}
-	memcpy(d->cdtaipp, d->cdnonce + nonceoffset, 16);
+	memcpy(taiold, d->cdnonce + nonceoffset, 16);
 	if (debug) fprintf(stderr, "Decoded packet of %d bytes from %p to %p\n", len, enc, raw);
 	return len;
 }
@@ -128,12 +142,14 @@ static int init(struct qtsession* sess) {
 
 	memset(d->cenonce, 0, crypto_box_curve25519xsalsa20poly1305_NONCEBYTES);
 	memset(d->cdnonce, 0, crypto_box_curve25519xsalsa20poly1305_NONCEBYTES);
-	memset(d->cdtaipp, 0, 16);
+	memset(d->cdtailog, 0, 5 * 16);
 
 	crypto_scalarmult_curve25519_base(cownpublickey, csecretkey);
 
 	if (envval = getconf("TIME_WINDOW")) {
-		taia_now_packed(d->cdtaipp, -atol(envval));
+		struct packedtaia* tailog = d->cdtailog;
+		taia_now_packed((unsigned char*)&tailog[0], -atol(envval));
+		tailog[4] = tailog[3] = tailog[2] = tailog[1] = tailog[0];
 	} else {
 		fprintf(stderr, "Warning: TIME_WINDOW not set, risking an initial replay attack\n");
 	}

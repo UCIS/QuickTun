@@ -377,7 +377,7 @@ static int decode(struct qtsession* sess, char* enc, char* raw, int len) {
 		dec->nonce[22] = enc[14];
 		dec->nonce[23] = enc[15];
 		memset(enc, 0, 16);
-	if (debug) dumphex("DECODE KEY", dec->sharedkey, 32);
+		if (debug) dumphex("DECODE KEY", dec->sharedkey, 32);
 		if (crypto_box_curve25519xsalsa20poly1305_open_afternm(raw, enc, len - 4 + 16, dec->nonce, dec->sharedkey)) {
 			fprintf(stderr, "Decryption of data packet failed len=%d\n", len);
 			return -1;

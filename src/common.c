@@ -100,6 +100,10 @@ int errorexit(const char* text) {
 	fprintf(stderr, "%s\n", text);
 	return -1;
 }
+int errorexit2(const char* text, const char* error) {
+	fprintf(stderr, "%s: %s\n", text, error);
+	return -1;
+}
 int errorexitp(const char* text) {
 	perror(text);
 	return -1;
@@ -156,14 +160,15 @@ static int init_udp(struct qtsession* session) {
 	fprintf(stderr, "Initializing UDP socket...\n");
 	struct addrinfo *ai_local = NULL, *ai_remote = NULL;
 	unsigned short af = 0;
+	int ret;
 	if (envval = getconf("LOCAL_ADDRESS")) {
-		if (getaddrinfo(envval, NULL, NULL, &ai_local)) return errorexitp("getaddrinfo(LOCAL_ADDRESS)");
+		if (ret = getaddrinfo(envval, NULL, NULL, &ai_local)) return errorexit2("getaddrinfo(LOCAL_ADDRESS)", gai_strerror(ret));
 		if (!ai_local) return errorexit("LOCAL_ADDRESS lookup failed");
 		if (ai_local->ai_addrlen > sizeof(sockaddr_any)) return errorexit("Resolved LOCAL_ADDRESS is too big");
 		af = ai_local->ai_family;
 	}
 	if (envval = getconf("REMOTE_ADDRESS")) {
-		if (getaddrinfo(envval, NULL, NULL, &ai_remote)) return errorexitp("getaddrinfo(REMOTE_ADDRESS)");
+		if (ret = getaddrinfo(envval, NULL, NULL, &ai_remote)) return errorexit2("getaddrinfo(REMOTE_ADDRESS)", gai_strerror(ret));
 		if (!ai_remote) return errorexit("REMOTE_ADDRESS lookup failed");
 		if (ai_remote->ai_addrlen > sizeof(sockaddr_any)) return errorexit("Resolved REMOTE_ADDRESS is too big");
 		if (af && af != ai_remote->ai_family) return errorexit("Address families do not match");
@@ -379,7 +384,7 @@ int qtrun(struct qtproto* p) {
 					if (ipver == 4) pihdr = htonl(AF_INET);
 					else if (ipver == 6) pihdr = htonl(AF_INET6);
 #endif
-					*(int*)(buffer_raw + p->offset_raw) = ipver;
+					*(int*)(buffer_raw + p->offset_raw) = pihdr;
 				}
 				if (len > 0) write(ttfd, buffer_raw + p->offset_raw, len + pi_length);
 			}
