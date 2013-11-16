@@ -328,6 +328,7 @@ static int encode(struct qtsession* sess, char* raw, char* enc, int len) {
 	for (i = NONCEBYTES - 1; i >= 0 && ++e->nonce[i] == 0; i--) ;
 	if (e->nonce[20] & 0xE0) return 0;
 	if (debug) dumphex("ENCODE KEY", e->sharedkey, 32);
+	memset(raw, 0, crypto_box_curve25519xsalsa20poly1305_ZEROBYTES);
 	if (crypto_box_curve25519xsalsa20poly1305_afternm(enc, raw, len + 32, e->nonce, e->sharedkey)) return errorexit("Encryption failed");
 	enc[12] = (e->nonce[20] & 0x1F) | (0 << 7) | (d->datalocalkeyid << 6) | (d->dataremotekeyid << 5);
 	enc[13] = e->nonce[21];
@@ -376,7 +377,7 @@ static int decode(struct qtsession* sess, char* enc, char* raw, int len) {
 		dec->nonce[21] = enc[13];
 		dec->nonce[22] = enc[14];
 		dec->nonce[23] = enc[15];
-		memset(enc, 0, 16);
+		memset(enc, 0, crypto_box_curve25519xsalsa20poly1305_BOXZEROBYTES);
 		if (debug) dumphex("DECODE KEY", dec->sharedkey, 32);
 		if (crypto_box_curve25519xsalsa20poly1305_open_afternm(raw, enc, len - 4 + 16, dec->nonce, dec->sharedkey)) {
 			fprintf(stderr, "Decryption of data packet failed len=%d\n", len);
