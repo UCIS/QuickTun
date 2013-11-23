@@ -216,7 +216,7 @@ static int init_tuntap(struct qtsession* session) {
 	if (envval = getconf("TUN_MODE")) tunmode = atoi(envval);
 	session->use_pi = 0;
 	if (tunmode && (envval = getconf("USE_PI"))) session->use_pi = atoi(envval);
-#if defined linux
+#if defined(__linux__)
 	struct ifreq ifr; //required for tun/tap setup
 	memset(&ifr, 0, sizeof(ifr));
 	if ((ttfd = open("/dev/net/tun", O_RDWR)) < 0) return errorexitp("Could not open tun/tap device file");
@@ -243,8 +243,12 @@ static int init_tuntap(struct qtsession* session) {
 	if (tunmode) {
 		int i = IFF_POINTOPOINT | IFF_MULTICAST;
 		ioctl(ttfd, TUNSIFMODE, &i);
+#if defined(__OpenBSD__)
+		if (!session->use_pi) session->use_pi = 2;
+#else
 		i = session->use_pi ? 1 : 0;
 		ioctl(ttfd, TUNSIFHEAD, &i);
+#endif
 	}
 #endif
 	if (envval = getconf("TUN_UP_SCRIPT")) system(envval);
