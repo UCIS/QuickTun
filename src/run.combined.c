@@ -52,7 +52,7 @@ int main(int argc, char** argv) {
 #endif
 	if (qtprocessargs(argc, argv) < 0) return -1;
 	char* envval;
-	if (envval = getconf("PROTOCOL")) {
+	if ((envval = getconf("PROTOCOL"))) {
 		if (strcmp(envval, "raw") == 0) {
 			return qtrun(&qtproto_raw);
 		} else if (strcmp(envval, "nacl0") == 0) {

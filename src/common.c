@@ -27,7 +27,9 @@
 #include <stdlib.h>
 #include <string.h>
 #include <fcntl.h>
+#include <unistd.h>
 #include <pwd.h>
+#include <grp.h>
 #ifndef HAVE_NETINET_IN_H
 #include <netinet/in.h>
 #endif
@@ -36,6 +38,7 @@
 #include <poll.h>
 #include <netdb.h>
 #include <stdlib.h>
+#include <arpa/inet.h>
 #include <net/if.h>
 #ifdef linux
 	#include <linux/if_tun.h>
@@ -87,8 +90,10 @@ struct qtsession {
 	extern int errorexit(const char*);
 	extern int errorexitp(const char*);
 	extern void print_header();
-	extern void hex2bin(unsigned char*, unsigned char*, int);
+	extern void hex2bin(unsigned char*, const char*, const int);
 	extern int debug;
+	extern int qtrun(struct qtproto* p);
+	extern int qtprocessargs(int argc, char** argv);
 #else
 
 char* (*getconf)(const char*) = getenv;
@@ -161,14 +166,14 @@ static int init_udp(struct qtsession* session) {
 	struct addrinfo *ai_local = NULL, *ai_remote = NULL;
 	unsigned short af = 0;
 	int ret;
-	if (envval = getconf("LOCAL_ADDRESS")) {
-		if (ret = getaddrinfo(envval, NULL, NULL, &ai_local)) return errorexit2("getaddrinfo(LOCAL_ADDRESS)", gai_strerror(ret));
+	if ((envval = getconf("LOCAL_ADDRESS"))) {
+		if ((ret = getaddrinfo(envval, NULL, NULL, &ai_local))) return errorexit2("getaddrinfo(LOCAL_ADDRESS)", gai_strerror(ret));
 		if (!ai_local) return errorexit("LOCAL_ADDRESS lookup failed");
 		if (ai_local->ai_addrlen > sizeof(sockaddr_any)) return errorexit("Resolved LOCAL_ADDRESS is too big");
 		af = ai_local->ai_family;
 	}
-	if (envval = getconf("REMOTE_ADDRESS")) {
-		if (ret = getaddrinfo(envval, NULL, NULL, &ai_remote)) return errorexit2("getaddrinfo(REMOTE_ADDRESS)", gai_strerror(ret));
+	if ((envval = getconf("REMOTE_ADDRESS"))) {
+		if ((ret = getaddrinfo(envval, NULL, NULL, &ai_remote))) return errorexit2("getaddrinfo(REMOTE_ADDRESS)", gai_strerror(ret));
 		if (!ai_remote) return errorexit("REMOTE_ADDRESS lookup failed");
 		if (ai_remote->ai_addrlen > sizeof(sockaddr_any)) return errorexit("Resolved REMOTE_ADDRESS is too big");
 		if (af && af != ai_remote->ai_family) return errorexit("Address families do not match");
@@ -182,7 +187,7 @@ static int init_udp(struct qtsession* session) {
 	udpaddr.any.sa_family = af;
 	if (ai_local) memcpy(&udpaddr, ai_local->ai_addr, ai_local->ai_addrlen);
 	int port = 2998;
-	if (envval = getconf("LOCAL_PORT")) port = atoi(envval);
+	if ((envval = getconf("LOCAL_PORT"))) port = atoi(envval);
 	if (sockaddr_set_port(&udpaddr, port)) return -1;
 	if (bind(sfd, (struct sockaddr*)&udpaddr, sizeof(udpaddr))) return errorexitp("Could not bind socket");
 	memset(&udpaddr, 0, sizeof(udpaddr));
@@ -193,7 +198,7 @@ static int init_udp(struct qtsession* session) {
 	} else {
 		session->remote_float = getconf("REMOTE_FLOAT") ? 1 : 0;
 		port = 2998;
-		if (envval = getconf("REMOTE_PORT")) port = atoi(envval);
+		if ((envval = getconf("REMOTE_PORT"))) port = atoi(envval);
 		if (sockaddr_set_port(&udpaddr, port)) return -1;
 		session->remote_addr = udpaddr;
 		if (session->remote_float) {
@@ -213,14 +218,14 @@ static int init_tuntap(struct qtsession* session) {
 	fprintf(stderr, "Initializing tun/tap device...\n");
 	int ttfd; //Tap device file descriptor
 	int tunmode = 0;
-	if (envval = getconf("TUN_MODE")) tunmode = atoi(envval);
+	if ((envval = getconf("TUN_MODE"))) tunmode = atoi(envval);
 	session->use_pi = 0;
 	if (tunmode && (envval = getconf("USE_PI"))) session->use_pi = atoi(envval);
 #if defined(__linux__)
 	struct ifreq ifr; //required for tun/tap setup
 	memset(&ifr, 0, sizeof(ifr));
 	if ((ttfd = open("/dev/net/tun", O_RDWR)) < 0) return errorexitp("Could not open tun/tap device file");
-	if (envval = getconf("INTERFACE")) strcpy(ifr.ifr_name, envval);
+	if ((envval = getconf("INTERFACE"))) strcpy(ifr.ifr_name, envval);
 	ifr.ifr_flags = tunmode ? IFF_TUN : IFF_TAP;
 	if (!session->use_pi) ifr.ifr_flags |= IFF_NO_PI;
 	if (ioctl(ttfd, TUNSETIFF, (void *)&ifr) < 0) return errorexitp("TUNSETIFF ioctl failed");
@@ -251,12 +256,12 @@ static int init_tuntap(struct qtsession* session) {
 #endif
 	}
 #endif
-	if (envval = getconf("TUN_UP_SCRIPT")) system(envval);
+	if ((envval = getconf("TUN_UP_SCRIPT"))) system(envval);
 	session->fd_dev = ttfd;
 	return ttfd;
 }
 
-void hex2bin(unsigned char* dest, unsigned char* src, int count) {
+void hex2bin(unsigned char* dest, const char* src, const int count) {
 	int i;
 	for (i = 0; i < count; i++) {
 		if (*src >= '0' && *src <= '9') *dest = *src - '0';
@@ -273,11 +278,11 @@ void hex2bin(unsigned char* dest, unsigned char* src, int count) {
 static int drop_privileges() {
 	char* envval;
 	struct passwd *pw = NULL;
-	if (envval = getconf("SETUID")) {
+	if ((envval = getconf("SETUID"))) {
 		pw = getpwnam(envval);
 		if (!pw) return errorexitp("getpwnam");
 	}
-	if (envval = getconf("CHROOT")) {
+	if ((envval = getconf("CHROOT"))) {
 		if (chroot(envval)) return errorexitp("chroot");
 		if (chdir("/")) return errorexitp("chdir /");
 	}
@@ -286,6 +291,7 @@ static int drop_privileges() {
 		if (setgid(pw->pw_gid) == -1) return errorexitp("setgid");
 		if (setuid(pw->pw_uid) == -1) return errorexitp("setuid");
 	}
+	return 0;
 }
 
 static void qtsendnetworkpacket(struct qtsession* session, char* msg, int len) {
@@ -351,8 +357,8 @@ int qtrun(struct qtproto* p) {
 		}
 		if (fds[1].revents & POLLERR) {
 			int out;
-			len = sizeof(out);
-			getsockopt(sfd, SOL_SOCKET, SO_ERROR, &out, &len);
+			socklen_t slen = sizeof(out);
+			getsockopt(sfd, SOL_SOCKET, SO_ERROR, &out, &slen);
 			fprintf(stderr, "Received error %d on udp socket\n", out);
 		}
 		if (fds[1].revents & POLLIN) {
@@ -365,8 +371,8 @@ int qtrun(struct qtproto* p) {
 			}
 			if (len < 0) {
 				long long out;
-				len = sizeof(out);
-				getsockopt(sfd, SOL_SOCKET, SO_ERROR, &out, &len);
+				socklen_t slen = sizeof(out);
+				getsockopt(sfd, SOL_SOCKET, SO_ERROR, &out, &slen);
 				fprintf(stderr, "Received end of file on udp socket (error %lld)\n", out);
 			} else {
 				len = p->decode(&session, buffer_enc, buffer_raw + pi_length, len);
@@ -424,6 +430,7 @@ int qtprocessargs(int argc, char** argv) {
 			return errorexit("Unexpected command line argument");
 		}
 	}
+	return 0;
 }
 #endif
 

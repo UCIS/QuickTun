@@ -60,7 +60,7 @@ static void taia_now_packed(unsigned char* b, int secoffset) {
 	b[9] = (nano >> 16) & 0xff;
 	b[10] = (nano >> 8) & 0xff;
 	b[11] = (nano >> 0) & 0xff;
-	++b[15] == 0 && ++b[14] == 0 && ++b[13] == 0 && ++b[12] == 0;
+	if (++b[15] == 0 && ++b[14] == 0 && ++b[13] == 0) ++b[12];
 }
 
 //Packet format: <16 bytes taia packed timestamp><16 bytes checksum><n bytes encrypted data>
@@ -70,7 +70,7 @@ static int encode(struct qtsession* sess, char* raw, char* enc, int len) {
 	struct qt_proto_data_nacltai* d = (struct qt_proto_data_nacltai*)sess->protocol_data;
 	memset(raw, 0, crypto_box_curve25519xsalsa20poly1305_ZEROBYTES);
 	taia_now_packed(d->cenonce + nonceoffset, 0);
-	if (crypto_box_curve25519xsalsa20poly1305_afternm(enc, raw, len + crypto_box_curve25519xsalsa20poly1305_ZEROBYTES, d->cenonce, d->cbefore)) return errorexit("Encryption failed");
+	if (crypto_box_curve25519xsalsa20poly1305_afternm((unsigned char*)enc, (unsigned char*)raw, len + crypto_box_curve25519xsalsa20poly1305_ZEROBYTES, d->cenonce, d->cbefore)) return errorexit("Encryption failed");
 	memcpy((void*)(enc + crypto_box_curve25519xsalsa20poly1305_BOXZEROBYTES - noncelength), d->cenonce + nonceoffset, noncelength);
 	len += overhead;
 	if (debug) fprintf(stderr, "Encoded packet of %d bytes from %p to %p\n", len, raw, enc);
@@ -102,8 +102,8 @@ static int decode(struct qtsession* sess, char* enc, char* raw, int len) {
 	}
 	memcpy(d->cdnonce + nonceoffset, enc, noncelength);
 	memset(enc, 0, crypto_box_curve25519xsalsa20poly1305_BOXZEROBYTES);
-	if (i = crypto_box_curve25519xsalsa20poly1305_open_afternm(raw, enc, len + crypto_box_curve25519xsalsa20poly1305_ZEROBYTES, d->cdnonce, d->cbefore)) {
-		fprintf(stderr, "Decryption failed len=%d result=%d\n", len, i);
+	if (crypto_box_curve25519xsalsa20poly1305_open_afternm((unsigned char*)raw, (unsigned char*)enc, len + crypto_box_curve25519xsalsa20poly1305_ZEROBYTES, d->cdnonce, d->cbefore)) {
+		fprintf(stderr, "Decryption failed len=%d\n", len);
 		return -1;
 	}
 	memcpy(taiold, d->cdnonce + nonceoffset, 16);
@@ -119,17 +119,17 @@ static int init(struct qtsession* sess) {
 	if (!(envval = getconf("PUBLIC_KEY"))) return errorexit("Missing PUBLIC_KEY");
 	if (strlen(envval) != 2*crypto_box_curve25519xsalsa20poly1305_PUBLICKEYBYTES) return errorexit("PUBLIC_KEY length");
 	hex2bin(cpublickey, envval, crypto_box_curve25519xsalsa20poly1305_PUBLICKEYBYTES);
-	if (envval = getconf("PRIVATE_KEY")) {
+	if ((envval = getconf("PRIVATE_KEY"))) {
 		if (strlen(envval) != 2*crypto_box_curve25519xsalsa20poly1305_PUBLICKEYBYTES) return errorexit("PRIVATE_KEY length");
 		hex2bin(csecretkey, envval, crypto_box_curve25519xsalsa20poly1305_SECRETKEYBYTES);
-	} else if (envval = getconf("PRIVATE_KEY_FILE")) {
+	} else if ((envval = getconf("PRIVATE_KEY_FILE"))) {
 		FILE* pkfile = fopen(envval, "rb");
 		if (!pkfile) return errorexitp("Could not open PRIVATE_KEY_FILE");
 		char pktextbuf[crypto_box_curve25519xsalsa20poly1305_SECRETKEYBYTES * 2];
-		size_t pktextsize = fread(pktextbuf, 1, sizeof(pktextbuf), pkfile);
+		const size_t pktextsize = fread(pktextbuf, 1, sizeof(pktextbuf), pkfile);
 		if (pktextsize == crypto_box_curve25519xsalsa20poly1305_SECRETKEYBYTES) {
 			memcpy(csecretkey, pktextbuf, crypto_box_curve25519xsalsa20poly1305_SECRETKEYBYTES);
-		} else if (pktextsize = 2 * crypto_box_curve25519xsalsa20poly1305_SECRETKEYBYTES) {
+		} else if (pktextsize == 2 * crypto_box_curve25519xsalsa20poly1305_SECRETKEYBYTES) {
 			hex2bin(csecretkey, pktextbuf, crypto_box_curve25519xsalsa20poly1305_SECRETKEYBYTES);
 		} else {
 			return errorexit("PRIVATE_KEY length");
@@ -146,7 +146,7 @@ static int init(struct qtsession* sess) {
 
 	crypto_scalarmult_curve25519_base(cownpublickey, csecretkey);
 
-	if (envval = getconf("TIME_WINDOW")) {
+	if ((envval = getconf("TIME_WINDOW"))) {
 		struct packedtaia* tailog = d->cdtailog;
 		taia_now_packed((unsigned char*)&tailog[0], -atol(envval));
 		tailog[4] = tailog[3] = tailog[2] = tailog[1] = tailog[0];
@@ -154,7 +154,7 @@ static int init(struct qtsession* sess) {
 		fprintf(stderr, "Warning: TIME_WINDOW not set, risking an initial replay attack\n");
 	}
 	int role = memcmp(cownpublickey, cpublickey, crypto_box_curve25519xsalsa20poly1305_PUBLICKEYBYTES);
-	if (envval = getconf("ROLE")) role = atoi(envval) ? 1 : -1;
+	if ((envval = getconf("ROLE"))) role = atoi(envval) ? 1 : -1;
 	role = (role == 0) ? 0 : ((role > 0) ? 1 : 2);
 	d->cenonce[nonceoffset-1] = role & 1;
 	d->cdnonce[nonceoffset-1] = (role >> 1) & 1;

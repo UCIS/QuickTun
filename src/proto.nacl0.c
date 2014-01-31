@@ -33,21 +33,20 @@ struct qt_proto_data_nacl0 {
 static int encode(struct qtsession* sess, char* raw, char* enc, int len) {
 	struct qt_proto_data_nacl0* d = (struct qt_proto_data_nacl0*)sess->protocol_data;
 	memset(raw, 0, crypto_box_curve25519xsalsa20poly1305_ZEROBYTES);
-	if (crypto_box_curve25519xsalsa20poly1305_afternm(enc, raw, len+crypto_box_curve25519xsalsa20poly1305_ZEROBYTES, d->cnonce, d->cbefore)) return errorexit("Crypto failed");
+	if (crypto_box_curve25519xsalsa20poly1305_afternm((unsigned char*)enc, (unsigned char*)raw, len+crypto_box_curve25519xsalsa20poly1305_ZEROBYTES, d->cnonce, d->cbefore)) return errorexit("Crypto failed");
 	return len + crypto_box_curve25519xsalsa20poly1305_BOXZEROBYTES;
 }
 
 static int decode(struct qtsession* sess, char* enc, char* raw, int len) {
 	struct qt_proto_data_nacl0* d = (struct qt_proto_data_nacl0*)sess->protocol_data;
-	int i;
 	if (len < crypto_box_curve25519xsalsa20poly1305_BOXZEROBYTES) {
 		fprintf(stderr, "Short packet received: %d\n", len);
 		return -1;
 	}
 	len -= crypto_box_curve25519xsalsa20poly1305_BOXZEROBYTES;
 	memset(enc, 0, crypto_box_curve25519xsalsa20poly1305_BOXZEROBYTES);
-	if (i = crypto_box_curve25519xsalsa20poly1305_open_afternm(raw, enc, len+crypto_box_curve25519xsalsa20poly1305_ZEROBYTES, d->cnonce, d->cbefore)) {
-		fprintf(stderr, "Decryption failed len=%d result=%d\n", len, i);
+	if (crypto_box_curve25519xsalsa20poly1305_open_afternm((unsigned char*)raw, (unsigned char*)enc, len+crypto_box_curve25519xsalsa20poly1305_ZEROBYTES, d->cnonce, d->cbefore)) {
+		fprintf(stderr, "Decryption failed len=%d\n", len);
 		return -1;
 	}
 	return len;
@@ -62,17 +61,17 @@ static int init(struct qtsession* sess) {
 	if (!(envval = getconf("PUBLIC_KEY"))) return errorexit("Missing PUBLIC_KEY");
 	if (strlen(envval) != 2*crypto_box_curve25519xsalsa20poly1305_PUBLICKEYBYTES) return errorexit("PUBLIC_KEY length");
 	hex2bin(cpublickey, envval, crypto_box_curve25519xsalsa20poly1305_PUBLICKEYBYTES);
-	if (envval = getconf("PRIVATE_KEY")) {
+	if ((envval = getconf("PRIVATE_KEY"))) {
 		if (strlen(envval) != 2*crypto_box_curve25519xsalsa20poly1305_PUBLICKEYBYTES) return errorexit("PRIVATE_KEY length");
 		hex2bin(csecretkey, envval, crypto_box_curve25519xsalsa20poly1305_SECRETKEYBYTES);
-	} else if (envval = getconf("PRIVATE_KEY_FILE")) {
+	} else if ((envval = getconf("PRIVATE_KEY_FILE"))) {
 		FILE* pkfile = fopen(envval, "rb");
 		if (!pkfile) return errorexitp("Could not open PRIVATE_KEY_FILE");
 		char pktextbuf[crypto_box_curve25519xsalsa20poly1305_SECRETKEYBYTES * 2];
-		size_t pktextsize = fread(pktextbuf, 1, sizeof(pktextbuf), pkfile);
+		const size_t pktextsize = fread(pktextbuf, 1, sizeof(pktextbuf), pkfile);
 		if (pktextsize == crypto_box_curve25519xsalsa20poly1305_SECRETKEYBYTES) {
 			memcpy(csecretkey, pktextbuf, crypto_box_curve25519xsalsa20poly1305_SECRETKEYBYTES);
-		} else if (pktextsize = 2 * crypto_box_curve25519xsalsa20poly1305_SECRETKEYBYTES) {
+		} else if (pktextsize == 2 * crypto_box_curve25519xsalsa20poly1305_SECRETKEYBYTES) {
 			hex2bin(csecretkey, pktextbuf, crypto_box_curve25519xsalsa20poly1305_SECRETKEYBYTES);
 		} else {
 			return errorexit("PRIVATE_KEY length");

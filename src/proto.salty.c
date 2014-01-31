@@ -120,6 +120,7 @@ When receiving packet:
 #include <sys/types.h>
 #include <sys/time.h>
 #include <stdbool.h>
+#include <time.h>
 
 #define NONCEBYTES crypto_box_curve25519xsalsa20poly1305_NONCEBYTES
 #define BEFORENMBYTES crypto_box_curve25519xsalsa20poly1305_BEFORENMBYTES
@@ -167,7 +168,7 @@ static uint32 decodeuint32(char* sb) {
 	unsigned char* b = (unsigned char*)sb;
 	return (b[0] << 24) | (b[1] << 16) | (b[2] << 8) | b[3];
 }
-static void encodeuint64(char* b, uint64 v) {
+static void encodeuint64(unsigned char* b, uint64 v) {
 	b[0] = (v >> 56) & 255;
 	b[1] = (v >> 48) & 255;
 	b[2] = (v >> 40) & 255;
@@ -184,7 +185,7 @@ static uint64 decodeuint64(char* sb) {
 
 static int devurandomfd = -1;
 
-static void dumphex(unsigned char* lbl, unsigned char* buffer, int len) {
+static void dumphex(char* lbl, unsigned char* buffer, int len) {
 	fprintf(stderr, "%s: ", lbl);
 	for (; len > 0; len--, buffer++) fprintf(stderr, "%02x", *buffer);
 	fprintf(stderr, "\n");
@@ -232,7 +233,7 @@ static void sendkeyupdate(struct qtsession* sess, bool ack) {
 	if (crypto_box_curve25519xsalsa20poly1305_afternm(encbuffer, buffer, 32 + (1 + 32 + 24 + 32 + 24 + 8), nonce, d->controlkey)) return;
 	memcpy(encbuffer + 16 - 8, nonce + 16, 8);
 	encbuffer[16 - 1 - 8] = 0x80;
-	if (sess->sendnetworkpacket) sess->sendnetworkpacket(sess, encbuffer + 16 - 1 - 8, 1 + 8 + 16 + (1 + 32 + 24 + 32 + 24 + 8));
+	if (sess->sendnetworkpacket) sess->sendnetworkpacket(sess, (char*)encbuffer + 16 - 1 - 8, 1 + 8 + 16 + (1 + 32 + 24 + 32 + 24 + 8));
 	d->lastkeyupdatesent = time(NULL);
 }
 
@@ -250,6 +251,7 @@ static bool beginkeyupdate(struct qtsession* sess) {
 	initdecoder(&d->datadecoders[(d->dataremotekeyid << 1) | d->datalocalkeynextid], d->dataremotekey, enckey->privatekey, d->dataremotenonce);
 	sendkeyupdate(sess, false);
 	d->lastkeyupdate = time(NULL);
+	return true;
 }
 
 static void beginkeyupdateifnecessary(struct qtsession* sess) {
@@ -270,17 +272,17 @@ static int init(struct qtsession* sess) {
 	if (!(envval = getconf("PUBLIC_KEY"))) return errorexit("Missing PUBLIC_KEY");
 	if (strlen(envval) != 2*PUBLICKEYBYTES) return errorexit("PUBLIC_KEY length");
 	hex2bin(cpublickey, envval, PUBLICKEYBYTES);
-	if (envval = getconf("PRIVATE_KEY")) {
+	if ((envval = getconf("PRIVATE_KEY"))) {
 		if (strlen(envval) != 2 * PUBLICKEYBYTES) return errorexit("PRIVATE_KEY length");
 		hex2bin(csecretkey, envval, PRIVATEKEYBYTES);
-	} else if (envval = getconf("PRIVATE_KEY_FILE")) {
+	} else if ((envval = getconf("PRIVATE_KEY_FILE"))) {
 		FILE* pkfile = fopen(envval, "rb");
 		if (!pkfile) return errorexitp("Could not open PRIVATE_KEY_FILE");
 		char pktextbuf[PRIVATEKEYBYTES * 2];
-		size_t pktextsize = fread(pktextbuf, 1, sizeof(pktextbuf), pkfile);
+		const size_t pktextsize = fread(pktextbuf, 1, sizeof(pktextbuf), pkfile);
 		if (pktextsize == PRIVATEKEYBYTES) {
 			memcpy(csecretkey, pktextbuf, PRIVATEKEYBYTES);
-		} else if (pktextsize = 2 * PRIVATEKEYBYTES) {
+		} else if (pktextsize == 2 * PRIVATEKEYBYTES) {
 			hex2bin(csecretkey, pktextbuf, PRIVATEKEYBYTES);
 		} else {
 			return errorexit("PRIVATE_KEY length");
@@ -329,7 +331,7 @@ static int encode(struct qtsession* sess, char* raw, char* enc, int len) {
 	if (e->nonce[20] & 0xE0) return 0;
 	if (debug) dumphex("ENCODE KEY", e->sharedkey, 32);
 	memset(raw, 0, crypto_box_curve25519xsalsa20poly1305_ZEROBYTES);
-	if (crypto_box_curve25519xsalsa20poly1305_afternm(enc, raw, len + 32, e->nonce, e->sharedkey)) return errorexit("Encryption failed");
+	if (crypto_box_curve25519xsalsa20poly1305_afternm((unsigned char*)enc, (unsigned char*)raw, len + 32, e->nonce, e->sharedkey)) return errorexit("Encryption failed");
 	enc[12] = (e->nonce[20] & 0x1F) | (0 << 7) | (d->datalocalkeyid << 6) | (d->dataremotekeyid << 5);
 	enc[13] = e->nonce[21];
 	enc[14] = e->nonce[22];
@@ -379,7 +381,7 @@ static int decode(struct qtsession* sess, char* enc, char* raw, int len) {
 		dec->nonce[23] = enc[15];
 		memset(enc, 0, crypto_box_curve25519xsalsa20poly1305_BOXZEROBYTES);
 		if (debug) dumphex("DECODE KEY", dec->sharedkey, 32);
-		if (crypto_box_curve25519xsalsa20poly1305_open_afternm(raw, enc, len - 4 + 16, dec->nonce, dec->sharedkey)) {
+		if (crypto_box_curve25519xsalsa20poly1305_open_afternm((unsigned char*)raw, (unsigned char*)enc, len - 4 + 16, dec->nonce, dec->sharedkey)) {
 			fprintf(stderr, "Decryption of data packet failed len=%d\n", len);
 			return -1;
 		}
@@ -402,7 +404,7 @@ static int decode(struct qtsession* sess, char* enc, char* raw, int len) {
 		cnonce[0] = (d->controlroles >> 1) & 1;
 		memcpy(cnonce + 16, enc + 13, 8);
 		memset(enc + 12 + 1 + 8 - 16, 0, 16);
-		if (crypto_box_curve25519xsalsa20poly1305_open_afternm(raw, enc + 12 + 1 + 8 - 16, len - 1 - 8 + 16, cnonce, d->controlkey)) {
+		if (crypto_box_curve25519xsalsa20poly1305_open_afternm((unsigned char*)raw, (unsigned char*)enc + 12 + 1 + 8 - 16, len - 1 - 8 + 16, cnonce, d->controlkey)) {
 			fprintf(stderr, "Decryption of control packet failed len=%d\n", len);
 			return -1;
 		}
