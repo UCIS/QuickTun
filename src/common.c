@@ -180,6 +180,9 @@ static int init_udp(struct qtsession* session) {
 		af = ai_remote->ai_family;
 	}
 	if (!af) af = AF_INET;
+	int sa_size = sizeof(sockaddr_any);
+	if (af == AF_INET) sa_size = sizeof(struct sockaddr_in);
+	else if (af == AF_INET6) sa_size = sizeof(struct sockaddr_in6);
 	int sfd = socket(af, SOCK_DGRAM, IPPROTO_UDP);
 	if (sfd < 0) return errorexitp("Could not create UDP socket");
 	sockaddr_any udpaddr;
@@ -189,7 +192,7 @@ static int init_udp(struct qtsession* session) {
 	int port = 2998;
 	if ((envval = getconf("LOCAL_PORT"))) port = atoi(envval);
 	if (sockaddr_set_port(&udpaddr, port)) return -1;
-	if (bind(sfd, (struct sockaddr*)&udpaddr, sizeof(udpaddr))) return errorexitp("Could not bind socket");
+	if (bind(sfd, &udpaddr.any, sa_size)) return errorexitp("Could not bind socket");
 	memset(&udpaddr, 0, sizeof(udpaddr));
 	udpaddr.any.sa_family = af;
 	if (ai_remote) memcpy(&udpaddr, ai_remote->ai_addr, ai_remote->ai_addrlen);
@@ -204,7 +207,7 @@ static int init_udp(struct qtsession* session) {
 		if (session->remote_float) {
 			session->remote_float = 2;
 		} else {
-			if (connect(sfd, (struct sockaddr*)&udpaddr, sizeof(udpaddr))) return errorexitp("Could not connect socket");
+			if (connect(sfd, &udpaddr.any, sa_size)) return errorexitp("Could not connect socket");
 		}
 	}
 	if (ai_local) freeaddrinfo(ai_local);
@@ -318,7 +321,7 @@ int qtrun(struct qtproto* p) {
 
 	char protocol_data[p->protocol_data_size];
 	memset(protocol_data, 0, p->protocol_data_size);
-	session.protocol_data = &protocol_data;
+	session.protocol_data = protocol_data;
 	if (p->init && p->init(&session) < 0) return -1;
 
 	if (drop_privileges() < 0) return -1;

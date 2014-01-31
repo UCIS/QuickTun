@@ -7,6 +7,7 @@ cc="cc"
 if [ "$(uname -s)" = "OpenBSD" -o "$(uname -s)" = "FreeBSD" -o "$(uname -s)" = "NetBSD" ]; then
 	echo "Detected *BSD"
 	tar="gtar"
+	export CPATH="/usr/local/include:${CPATH}"
 elif [ "$(uname -s)" = "SunOS" ]; then
 	echo "Detected SunOS"
 	tar="gtar"
