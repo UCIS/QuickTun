@@ -15,8 +15,8 @@ elif [ "$(uname -s)" = "SunOS" ]; then
 	LDFLAGS="$LDFLAGS -lnsl -lsocket"
 elif [ "$(uname -s)" = "Darwin" ]; then
 	echo "Detected Mac OS X (Darwin)"
-	CFLAGS="$CFLAGS -arch i686"
-	LDFLAGS="$LDFLAGS -arch i686"
+	tar="gnutar"
+	cc="clang"
 fi
 
 echo Cleaning up...
