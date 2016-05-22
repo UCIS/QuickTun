@@ -114,9 +114,8 @@ When receiving packet:
 		Write packet to tunnel
 */
 
-#include "common.c"
-#include "crypto_box_curve25519xsalsa20poly1305.h"
-#include "crypto_scalarmult_curve25519.h"
+#include "common.h"
+
 #include <sys/types.h>
 #include <sys/time.h>
 #include <stdbool.h>
@@ -460,11 +459,3 @@ struct qtproto qtproto_salty = {
 	sizeof(struct qt_proto_data_salty),
 	idle,
 };
-
-#ifndef COMBINED_BINARY
-int main(int argc, char** argv) {
-	print_header();
-	if (qtprocessargs(argc, argv) < 0) return -1;
-	return qtrun(&qtproto_salty);
-}
-#endif

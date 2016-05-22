@@ -1,3 +1,0 @@
-#!/bin/sh
-echo Cleaning up...
-rm -rf out obj debian/data tmp

@@ -10,11 +10,7 @@ sed "s/%VERSION%/${VERSION}/" -i data/DEBIAN/control
 if [ -n "${NACL_SHARED}" ]; then
 	sed "s/\\(Depends: .*\\)/\\1, libnacl | libnacl-ref | libnacl-build/" -i data/DEBIAN/control
 fi
-cp ../out/quicktun.raw data/usr/sbin/
-cp ../out/quicktun.nacl0 data/usr/sbin/
-cp ../out/quicktun.nacltai data/usr/sbin/
-cp ../out/quicktun.debian data/usr/sbin/
-cp ../out/quicktun.keypair data/usr/sbin/
-cp ../out/quicktun data/usr/sbin/
+cp ../quicktun data/usr/sbin/
+cp ../quicktun-keypair data/usr/sbin/
 fakeroot dpkg-deb --build data quicktun-${VERSION}_${ARCH}.deb
-mv quicktun*.deb ../out/
+mv quicktun*.deb ../../

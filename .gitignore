@@ -1,0 +1,4 @@
+*.o
+/quicktun
+/quicktun-keypair
+/quicktun-*.tar.gz
