@@ -23,7 +23,7 @@
    authors and should not be interpreted as representing official policies, either expressed
    or implied, of Ivo Smits.*/
 
-#include "common.c"
+#include "common.h"
 #include "crypto_box_curve25519xsalsa20poly1305.h"
 
 struct qt_proto_data_nacl0 {

@@ -82,11 +82,11 @@ $cc $CFLAGS -o out/quicktun.combined obj/common.o obj/run.combined.o obj/proto.r
 ln out/quicktun.combined out/quicktun
 
 echo Building single protocol binaries...
-$cc $CFLAGS -o out/quicktun.raw		src/proto.raw.c				$LDFLAGS
-$cc $CFLAGS -o out/quicktun.nacl0	src/proto.nacl0.c	-l$CRYPTLIB	$LDFLAGS
-$cc $CFLAGS -o out/quicktun.nacltai	src/proto.nacltai.c	-l$CRYPTLIB	$LDFLAGS
-$cc $CFLAGS -o out/quicktun.salty	src/proto.salty.c	-l$CRYPTLIB	$LDFLAGS
-$cc $CFLAGS -o out/quicktun.keypair	src/keypair.c		-l$CRYPTLIB	$LDFLAGS
+$cc $CFLAGS -o out/quicktun.raw		src/proto.raw.c		obj/common.o			$LDFLAGS
+$cc $CFLAGS -o out/quicktun.nacl0	src/proto.nacl0.c	obj/common.o	-l$CRYPTLIB	$LDFLAGS
+$cc $CFLAGS -o out/quicktun.nacltai	src/proto.nacltai.c	obj/common.o	-l$CRYPTLIB	$LDFLAGS
+$cc $CFLAGS -o out/quicktun.salty	src/proto.salty.c	obj/common.o	-l$CRYPTLIB	$LDFLAGS
+$cc $CFLAGS -o out/quicktun.keypair	src/keypair.c		obj/common.o	-l$CRYPTLIB	$LDFLAGS
 
 if [ -f /etc/network/interfaces ]; then
 	echo Building debian binary...

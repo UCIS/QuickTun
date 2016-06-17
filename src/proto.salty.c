@@ -114,7 +114,7 @@ When receiving packet:
 		Write packet to tunnel
 */
 
-#include "common.c"
+#include "common.h"
 #include "crypto_box_curve25519xsalsa20poly1305.h"
 #include "crypto_scalarmult_curve25519.h"
 #include <sys/types.h>

@@ -23,34 +23,71 @@
    authors and should not be interpreted as representing official policies, either expressed
    or implied, of Ivo Smits.*/
 
-#include "common.h"
+#ifndef QT_COMMON_H_
+#define QT_COMMON_H_
 
-static int encode(struct qtsession* sess, char* raw, char* enc, int len) {
-	memcpy(enc, raw, len);
-	return len;
-}
+#include <string.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <fcntl.h>
+#include <unistd.h>
 
-static int decode(struct qtsession* sess, char* enc, char* raw, int len) {
-	memcpy(raw, enc, len);
-	return len;
-}
+#include <netinet/in.h>
+#include <sys/socket.h>
+#include <arpa/inet.h>
+#include <net/if.h>
+#ifdef linux
+	#include <linux/if_tun.h>
+	#include <linux/if_ether.h>
+#else
+	#define ETH_FRAME_LEN 1514
+	#include <net/if_tun.h>
+	#ifdef SOLARIS
+		#include <sys/stropts.h>
+		#include <sys/sockio.h>
+	#endif
+#endif
 
-struct qtproto qtproto_raw = {
-	0,
-	MAX_PACKET_LEN,
-	MAX_PACKET_LEN,
-	0,
-	0,
-	decode,
-	encode,
-	NULL,
-	0,
+#define MAX_PACKET_LEN (ETH_FRAME_LEN+4) //Some space for optional packet information
+
+typedef union {
+	struct sockaddr any;
+	struct sockaddr_in ip4;
+	struct sockaddr_in6 ip6;
+} sockaddr_any;
+
+struct qtsession;
+struct qtproto {
+	int encrypted;
+	int buffersize_raw;
+	int buffersize_enc;
+	int offset_raw;
+	int offset_enc;
+	int (*encode)(struct qtsession* sess, char* raw, char* enc, int len);
+	int (*decode)(struct qtsession* sess, char* enc, char* raw, int len);
+	int (*init)(struct qtsession* sess);
+	int protocol_data_size;
+	void (*idle)(struct qtsession* sess);
+};
+struct qtsession {
+	struct qtproto protocol;
+	void* protocol_data;
+	int fd_socket;
+	int fd_dev;
+	int remote_float;
+	sockaddr_any remote_addr;
+	int use_pi;
+	int poll_timeout;
+	void (*sendnetworkpacket)(struct qtsession* sess, char* msg, int len);
 };
 
-#ifndef COMBINED_BINARY
-int main(int argc, char** argv) {
-	print_header();
-	if (qtprocessargs(argc, argv) < 0) return -1;
-	return qtrun(&qtproto_raw);
-}
+char* (*getconf)(const char*);
+int errorexit(const char*);
+int errorexitp(const char*);
+void print_header();
+void hex2bin(unsigned char*, const char*, const int);
+int debug;
+int qtrun(struct qtproto* p);
+int qtprocessargs(int argc, char** argv);
+
 #endif
