@@ -32,17 +32,6 @@
 #include <netdb.h>
 #include <stdlib.h>
 
-#ifdef COMBINED_BINARY
-	extern char* (*getconf)(const char*);
-	extern int errorexit(const char*);
-	extern int errorexitp(const char*);
-	extern void print_header();
-	extern void hex2bin(unsigned char*, const char*, const int);
-	extern int debug;
-	extern int qtrun(struct qtproto* p);
-	extern int qtprocessargs(int argc, char** argv);
-#else
-
 char* (*getconf)(const char*) = getenv;
 int debug = 0;
 static int gargc = 0;
@@ -382,4 +371,3 @@ int qtprocessargs(int argc, char** argv) {
 	}
 	return 0;
 }
-#endif

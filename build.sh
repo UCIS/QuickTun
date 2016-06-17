@@ -71,26 +71,24 @@ fi
 
 CFLAGS="$CFLAGS -DQT_VERSION=\"`cat version`\""
 
-echo Building combined binary...
-$cc $CFLAGS -c -DCOMBINED_BINARY	src/proto.raw.c		-o obj/proto.raw.o
-$cc $CFLAGS -c -DCOMBINED_BINARY	src/proto.nacl0.c	-o obj/proto.nacl0.o
-$cc $CFLAGS -c -DCOMBINED_BINARY	src/proto.nacltai.c	-o obj/proto.nacltai.o
-$cc $CFLAGS -c -DCOMBINED_BINARY	src/proto.salty.c	-o obj/proto.salty.o
-$cc $CFLAGS -c -DCOMBINED_BINARY	src/run.combined.c	-o obj/run.combined.o
-$cc $CFLAGS -c				src/common.c		-o obj/common.o
-$cc $CFLAGS -o out/quicktun.combined obj/common.o obj/run.combined.o obj/proto.raw.o obj/proto.nacl0.o obj/proto.nacltai.o obj/proto.salty.o -l$CRYPTLIB $LDFLAGS
-ln out/quicktun.combined out/quicktun
-
-echo Building single protocol binaries...
-$cc $CFLAGS -o out/quicktun.raw		src/proto.raw.c		obj/common.o			$LDFLAGS
-$cc $CFLAGS -o out/quicktun.nacl0	src/proto.nacl0.c	obj/common.o	-l$CRYPTLIB	$LDFLAGS
-$cc $CFLAGS -o out/quicktun.nacltai	src/proto.nacltai.c	obj/common.o	-l$CRYPTLIB	$LDFLAGS
-$cc $CFLAGS -o out/quicktun.salty	src/proto.salty.c	obj/common.o	-l$CRYPTLIB	$LDFLAGS
+echo Building binaries...
+$cc $CFLAGS -c src/proto.raw.c		-o obj/proto.raw.o
+$cc $CFLAGS -c src/proto.nacl0.c	-o obj/proto.nacl0.o
+$cc $CFLAGS -c src/proto.nacltai.c	-o obj/proto.nacltai.o
+$cc $CFLAGS -c src/proto.salty.c	-o obj/proto.salty.o
+$cc $CFLAGS -c src/main.c		-o obj/main.o
+$cc $CFLAGS -c src/common.c		-o obj/common.o
+$cc $CFLAGS -o out/quicktun obj/common.o obj/main.o obj/proto.raw.o obj/proto.nacl0.o obj/proto.nacltai.o obj/proto.salty.o -l$CRYPTLIB $LDFLAGS
 $cc $CFLAGS -o out/quicktun.keypair	src/keypair.c		obj/common.o	-l$CRYPTLIB	$LDFLAGS
+
+echo Creating compatibility symlinks...
+for proto in combined raw nacl0 nacltai salty; do
+    ln -s quicktun out/quicktun.$proto
+done
 
 if [ -f /etc/network/interfaces ]; then
 	echo Building debian binary...
-	$cc $CFLAGS -c -DCOMBINED_BINARY -DDEBIAN_BINARY src/run.combined.c -o obj/run.debian.o
+	$cc $CFLAGS -c -DDEBIAN_BINARY src/main.c -o obj/run.debian.o
 	$cc $CFLAGS -o out/quicktun.debian obj/common.o obj/run.debian.o obj/proto.raw.o obj/proto.nacl0.o obj/proto.nacltai.o obj/proto.salty.o -l$CRYPTLIB $LDFLAGS
 	if [ -x /usr/bin/dpkg-deb -a -x /usr/bin/fakeroot ]; then
 		echo -n Building debian package...

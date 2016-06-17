@@ -460,11 +460,3 @@ struct qtproto qtproto_salty = {
 	sizeof(struct qt_proto_data_salty),
 	idle,
 };
-
-#ifndef COMBINED_BINARY
-int main(int argc, char** argv) {
-	print_header();
-	if (qtprocessargs(argc, argv) < 0) return -1;
-	return qtrun(&qtproto_salty);
-}
-#endif

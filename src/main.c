@@ -43,6 +43,24 @@ char* getenvdeb(const char* name) {
 }
 #endif
 
+const char *execproto(const char *path)
+{
+	const char* last_dot;
+	const char* last_slash;
+
+	if (!path) return NULL;
+
+	last_dot = strrchr(path, '.');
+	last_slash = strrchr(path, '/');
+	if (last_dot && (!last_slash || last_slash < last_dot)) {
+		if (strcmp(last_dot + 1, "combined") == 0) {
+			return NULL;
+		}
+		return last_dot + 1;
+	}
+	return NULL;
+}
+
 int main(int argc, char** argv) {
 	print_header();
 #ifdef DEBIAN_BINARY
@@ -51,15 +69,22 @@ int main(int argc, char** argv) {
 	getconf = getenv;
 #endif
 	if (qtprocessargs(argc, argv) < 0) return -1;
-	char* envval;
-	if ((envval = getconf("PROTOCOL"))) {
-		if (strcmp(envval, "raw") == 0) {
+	const char* proto = execproto(argv[0]);
+	const char* envval = getconf("PROTOCOL");
+	if (proto && envval) {
+	  fprintf(stderr, "Warning: ignoring PROTOCOL setting '%s' in favor single-protocol compatibility '%s'\n",
+		  envval, proto);
+	} else if (!proto) {
+	  proto = envval;
+	}
+	if (proto) {
+		if (strcmp(proto, "raw") == 0) {
 			return qtrun(&qtproto_raw);
-		} else if (strcmp(envval, "nacl0") == 0) {
+		} else if (strcmp(proto, "nacl0") == 0) {
 			return qtrun(&qtproto_nacl0);
-		} else if (strcmp(envval, "nacltai") == 0) {
+		} else if (strcmp(proto, "nacltai") == 0) {
 			return qtrun(&qtproto_nacltai);
-		} else if (strcmp(envval, "salty") == 0) {
+		} else if (strcmp(proto, "salty") == 0) {
 			return qtrun(&qtproto_salty);
 		} else {
 			return errorexit("Unknown PROTOCOL specified");
@@ -72,4 +97,3 @@ int main(int argc, char** argv) {
 		return qtrun(&qtproto_raw);
 	}
 }
-
