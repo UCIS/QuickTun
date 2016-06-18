@@ -1,4 +1,0 @@
-#!/bin/sh
-if [ "$1" = "remove" ]; then
-	/usr/sbin/userdel quicktun
-fi

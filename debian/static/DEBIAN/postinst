@@ -1,6 +1,29 @@
 #!/bin/sh
-if [ "$1" = "configure" ]; then
-	if ! getent passwd quicktun >/dev/null; then
-		/usr/sbin/useradd -d /nonexistent -N -r -s /bin/false -g nogroup quicktun
-	fi
-fi
+
+set -e
+
+case "$1" in
+	configure|reconfigure)
+		adduser --system \
+			--quiet \
+			--group \
+			--home /nonexistent \
+			--no-create-home \
+			--gecos "QuickTun VPN daemon" \
+			quicktun
+		# Upgrade path: if the user quicktun already existed, "adduser" will not
+		# create the group, so we handle this here.
+		if ! getent group quicktun > /dev/null; then
+			echo "Creating system group \`quicktun' and putting quicktun user into it" 1>&2
+			addgroup --quiet --system quicktun
+			usermod -g quicktun quicktun
+		fi
+		;;
+	abort-upgrade|abort-remove|abort-deconfigure)
+		exit 0
+		;;
+	*)
+		echo "postinst called with unknown argument \`$1'" >&2
+		exit 1
+		;;
+esac
