@@ -158,12 +158,6 @@ struct qt_proto_data_salty {
 	struct qt_proto_data_salty_decstate datadecoders[4];
 };
 
-static void encodeuint32(char* b, uint32 v) {
-	b[0] = (v >> 24) & 255;
-	b[1] = (v >> 16) & 255;
-	b[2] = (v >> 8) & 255;
-	b[3] = (v >> 0) & 255;
-}
 static uint32 decodeuint32(char* sb) {
 	unsigned char* b = (unsigned char*)sb;
 	return (b[0] << 24) | (b[1] << 16) | (b[2] << 8) | b[3];
@@ -203,13 +197,13 @@ static bool randombytes(unsigned char* buffer, int len) {
 	return true;
 }
 
-static void initdecoder(struct qt_proto_data_salty_decstate* d, unsigned char rkey[], unsigned char lkey[], unsigned char nonce[]) {
+static int initdecoder(struct qt_proto_data_salty_decstate* d, unsigned char rkey[], unsigned char lkey[], unsigned char nonce[]) {
 	memcpy(d->remotekey, rkey, PUBLICKEYBYTES);
 	memcpy(d->nonce, nonce, NONCEBYTES);
 	memset(d->timestamps, 0, 5 * sizeof(uint32));
 	if (debug) dumphex("INIT DECODER SK", lkey, 32);
 	if (debug) dumphex("INIT DECODER RK", rkey, 32);
-	crypto_box_curve25519xsalsa20poly1305_beforenm(d->sharedkey, rkey, lkey);
+	return crypto_box_curve25519xsalsa20poly1305_beforenm(d->sharedkey, rkey, lkey);
 }
 
 static void sendkeyupdate(struct qtsession* sess, bool ack) {
@@ -248,7 +242,9 @@ static bool beginkeyupdate(struct qtsession* sess) {
 	memset(enckey->nonce + 20, 0, 4);
 	if (debug) dumphex("New public key", enckey->publickey, 32);
 	if (debug) dumphex("New base nonce", enckey->nonce, 24);
-	initdecoder(&d->datadecoders[(d->dataremotekeyid << 1) | d->datalocalkeynextid], d->dataremotekey, enckey->privatekey, d->dataremotenonce);
+	if (initdecoder(&d->datadecoders[(d->dataremotekeyid << 1) | d->datalocalkeynextid], d->dataremotekey, enckey->privatekey, d->dataremotenonce) != 0) {
+		return false;
+	}
 	sendkeyupdate(sess, false);
 	d->lastkeyupdate = time(NULL);
 	return true;
@@ -291,7 +287,9 @@ static int init(struct qtsession* sess) {
 	} else {
 		return errorexit("Missing PRIVATE_KEY");
 	}
-	crypto_box_curve25519xsalsa20poly1305_beforenm(d->controlkey, cpublickey, csecretkey);
+	if (crypto_box_curve25519xsalsa20poly1305_beforenm(d->controlkey, cpublickey, csecretkey) != 0) {
+          return -1;
+        }
 	unsigned char cownpublickey[PUBLICKEYBYTES];
 	crypto_scalarmult_curve25519_base(cownpublickey, csecretkey);
 	int role = memcmp(cownpublickey, cpublickey, PUBLICKEYBYTES);
@@ -434,7 +432,9 @@ static int decode(struct qtsession* sess, char* enc, char* raw, int len) {
 			d->datalocalkeynextid = -1;
 		}
 		if (lkeyid == d->datalocalkeyid) {
-			crypto_box_curve25519xsalsa20poly1305_beforenm(enckey->sharedkey, d->dataremotekey, enckey->privatekey);
+			if (crypto_box_curve25519xsalsa20poly1305_beforenm(enckey->sharedkey, d->dataremotekey, enckey->privatekey) != 0) {
+				return -1;
+			}
 			d->dataencoder = enckey;
 		}
 		if (debug) fprintf(stderr, "Decoded control packet: rkid=%d, lkid=%d, ack=%d, lkvalid=%d, uptodate=%d\n", d->dataremotekeyid, (cflags >> 5) & 0x01, (cflags >> 4) & 0x01, lkeyid != -1, d->datalocalkeynextid == -1);

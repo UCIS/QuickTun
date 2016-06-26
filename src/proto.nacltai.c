@@ -138,7 +138,9 @@ static int init(struct qtsession* sess) {
 	} else {
 		return errorexit("Missing PRIVATE_KEY");
 	}
-	crypto_box_curve25519xsalsa20poly1305_beforenm(d->cbefore, cpublickey, csecretkey);
+	if (crypto_box_curve25519xsalsa20poly1305_beforenm(d->cbefore, cpublickey, csecretkey) != 0) {
+		return -1;
+        }
 
 	memset(d->cenonce, 0, crypto_box_curve25519xsalsa20poly1305_NONCEBYTES);
 	memset(d->cdnonce, 0, crypto_box_curve25519xsalsa20poly1305_NONCEBYTES);
