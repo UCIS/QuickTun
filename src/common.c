@@ -373,10 +373,10 @@ int qtrun(struct qtproto* p) {
 				len = recvfrom(sfd, buffer_enc + p->offset_enc, p->buffersize_enc, 0, (struct sockaddr*)&recvaddr, &recvaddr_len);
 			}
 			if (len < 0) {
-				long long out;
+				int out;
 				socklen_t slen = sizeof(out);
 				getsockopt(sfd, SOL_SOCKET, SO_ERROR, &out, &slen);
-				fprintf(stderr, "Received end of file on udp socket (error %lld)\n", out);
+				fprintf(stderr, "Received end of file on udp socket (error %d)\n", out);
 			} else {
 				len = p->decode(&session, buffer_enc, buffer_raw + pi_length, len);
 				if (len < 0) continue;
