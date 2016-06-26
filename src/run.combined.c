@@ -44,13 +44,14 @@ char* getenvdeb(const char* name) {
 #endif
 
 int main(int argc, char** argv) {
-	print_header();
 #ifdef DEBIAN_BINARY
 	getconf = getenvdeb;
 #else
 	getconf = getenv;
 #endif
-	if (qtprocessargs(argc, argv) < 0) return -1;
+	int rc = qtprocessargs(argc, argv);
+	if (rc <= 0) return rc;
+	print_header();
 	char* envval;
 	if ((envval = getconf("PROTOCOL"))) {
 		if (strcmp(envval, "raw") == 0) {
