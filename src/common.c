@@ -101,6 +101,11 @@ int debug = 0;
 static int gargc = 0;
 static char** gargv = NULL;
 
+int successexit(const char* text) {
+	printf("%s\n", text);
+	return 0;
+}
+
 int errorexit(const char* text) {
 	fprintf(stderr, "%s\n", text);
 	return -1;
@@ -416,14 +421,17 @@ static char* getconfcmdargs(const char* name) {
 	return NULL;
 }
 
+/* A positive return value indicates the caller to proceed. A zero return value means the
+   program should terminate sucessfully after option processing, while a negative return
+   value indicates an error during argument processing. */
 int qtprocessargs(int argc, char** argv) {
 	int i;
 	for (i = 1; i < argc; i++) {
 		char* a = argv[i];
 		if (!strcmp(a, "-h") || !strcmp(a, "--help")) {
-			return errorexit("Please read the documentation at http://wiki.ucis.nl/QuickTun");
+			return successexit("Please read the documentation at http://wiki.ucis.nl/QuickTun");
 		} else if (!strcmp(a, "-v") || !strcmp(a, "--version")) {
-			return errorexit("UCIS QuickTun "QT_VERSION);
+			return successexit("UCIS QuickTun "QT_VERSION);
 		} else if (!strcmp(a, "-c")) {
 			gargc = argc;
 			gargv = argv;
@@ -433,7 +441,7 @@ int qtprocessargs(int argc, char** argv) {
 			return errorexit("Unexpected command line argument");
 		}
 	}
-	return 0;
+	return 1;
 }
 #endif
 
