@@ -23,7 +23,7 @@
    authors and should not be interpreted as representing official policies, either expressed
    or implied, of Ivo Smits.*/
 
-#include "common.c"
+#include "common.h"
 #include "crypto_box_curve25519xsalsa20poly1305.h"
 
 struct qt_proto_data_nacl0 {
@@ -95,11 +95,3 @@ struct qtproto qtproto_nacl0 = {
 	init,
 	sizeof(struct qt_proto_data_nacl0),
 };
-
-#ifndef COMBINED_BINARY
-int main(int argc, char** argv) {
-	print_header();
-	if (qtprocessargs(argc, argv) < 0) return -1;
-	return qtrun(&qtproto_nacl0);
-}
-#endif

@@ -23,7 +23,7 @@
    authors and should not be interpreted as representing official policies, either expressed
    or implied, of Ivo Smits.*/
 
-#include "common.c"
+#include "common.h"
 #include "crypto_box_curve25519xsalsa20poly1305.h"
 #include "crypto_scalarmult_curve25519.h"
 #include <sys/types.h>
@@ -172,11 +172,3 @@ struct qtproto qtproto_nacltai = {
 	init,
 	sizeof(struct qt_proto_data_nacltai),
 };
-
-#ifndef COMBINED_BINARY
-int main(int argc, char** argv) {
-	print_header();
-	if (qtprocessargs(argc, argv) < 0) return -1;
-	return qtrun(&qtproto_nacltai);
-}
-#endif

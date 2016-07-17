@@ -23,78 +23,14 @@
    authors and should not be interpreted as representing official policies, either expressed
    or implied, of Ivo Smits.*/
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <fcntl.h>
-#include <unistd.h>
+#include "common.h"
+
 #include <pwd.h>
 #include <grp.h>
-#ifndef HAVE_NETINET_IN_H
-#include <netinet/in.h>
-#endif
 #include <sys/ioctl.h>
-#include <sys/socket.h>
 #include <poll.h>
 #include <netdb.h>
 #include <stdlib.h>
-#include <arpa/inet.h>
-#include <net/if.h>
-#ifdef linux
-	#include <linux/if_tun.h>
-	#include <linux/if_ether.h>
-#else
-	#define ETH_FRAME_LEN 1514
-	#include <net/if_tun.h>
-	#ifdef SOLARIS
-		#include <sys/stropts.h>
-		#include <sys/sockio.h>
-	#endif
-#endif
-
-#define MAX_PACKET_LEN (ETH_FRAME_LEN+4) //Some space for optional packet information
-
-typedef union {
-	struct sockaddr any;
-	struct sockaddr_in ip4;
-	struct sockaddr_in6 ip6;
-} sockaddr_any;
-
-struct qtsession;
-struct qtproto {
-	int encrypted;
-	int buffersize_raw;
-	int buffersize_enc;
-	int offset_raw;
-	int offset_enc;
-	int (*encode)(struct qtsession* sess, char* raw, char* enc, int len);
-	int (*decode)(struct qtsession* sess, char* enc, char* raw, int len);
-	int (*init)(struct qtsession* sess);
-	int protocol_data_size;
-	void (*idle)(struct qtsession* sess);
-};
-struct qtsession {
-	struct qtproto protocol;
-	void* protocol_data;
-	int fd_socket;
-	int fd_dev;
-	int remote_float;
-	sockaddr_any remote_addr;
-	int use_pi;
-	int poll_timeout;
-	void (*sendnetworkpacket)(struct qtsession* sess, char* msg, int len);
-};
-
-#ifdef COMBINED_BINARY
-	extern char* (*getconf)(const char*);
-	extern int errorexit(const char*);
-	extern int errorexitp(const char*);
-	extern void print_header();
-	extern void hex2bin(unsigned char*, const char*, const int);
-	extern int debug;
-	extern int qtrun(struct qtproto* p);
-	extern int qtprocessargs(int argc, char** argv);
-#else
 
 char* (*getconf)(const char*) = getenv;
 int debug = 0;
@@ -435,5 +371,3 @@ int qtprocessargs(int argc, char** argv) {
 	}
 	return 0;
 }
-#endif
-

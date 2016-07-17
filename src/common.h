@@ -23,53 +23,71 @@
    authors and should not be interpreted as representing official policies, either expressed
    or implied, of Ivo Smits.*/
 
-#include "common.c"
+#ifndef QT_COMMON_H_
+#define QT_COMMON_H_
 
-extern struct qtproto qtproto_raw;
-extern struct qtproto qtproto_nacl0;
-extern struct qtproto qtproto_nacltai;
-extern struct qtproto qtproto_salty;
+#include <string.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <fcntl.h>
+#include <unistd.h>
 
-#ifdef DEBIAN_BINARY
-char* getenvdeb(const char* name) {
-	char tmp[1024] = "IF_QT_";
-	if (strcmp(name, "INTERFACE") == 0) return getenv("IFACE");
-	if (strlen(tmp) + strlen(name) >= 1024) {
-		fprintf(stderr, "Error: prefixed environment variable name is too long");
-		return NULL;
-	}
-	strcat(tmp, name);
-	return getenv(tmp);
-}
-#endif
-
-int main(int argc, char** argv) {
-	print_header();
-#ifdef DEBIAN_BINARY
-	getconf = getenvdeb;
+#include <netinet/in.h>
+#include <sys/socket.h>
+#include <arpa/inet.h>
+#include <net/if.h>
+#ifdef linux
+	#include <linux/if_tun.h>
+	#include <linux/if_ether.h>
 #else
-	getconf = getenv;
+	#define ETH_FRAME_LEN 1514
+	#include <net/if_tun.h>
+	#ifdef SOLARIS
+		#include <sys/stropts.h>
+		#include <sys/sockio.h>
+	#endif
 #endif
-	if (qtprocessargs(argc, argv) < 0) return -1;
-	char* envval;
-	if ((envval = getconf("PROTOCOL"))) {
-		if (strcmp(envval, "raw") == 0) {
-			return qtrun(&qtproto_raw);
-		} else if (strcmp(envval, "nacl0") == 0) {
-			return qtrun(&qtproto_nacl0);
-		} else if (strcmp(envval, "nacltai") == 0) {
-			return qtrun(&qtproto_nacltai);
-		} else if (strcmp(envval, "salty") == 0) {
-			return qtrun(&qtproto_salty);
-		} else {
-			return errorexit("Unknown PROTOCOL specified");
-		}
-	} else if (getconf("PRIVATE_KEY")) {
-		fprintf(stderr, "Warning: PROTOCOL not specified, using insecure nacl0 protocol\n");
-		return qtrun(&qtproto_nacl0);
-	} else {
-		fprintf(stderr, "Warning: PROTOCOL not specified, using insecure raw protocol\n");
-		return qtrun(&qtproto_raw);
-	}
-}
 
+#define MAX_PACKET_LEN (ETH_FRAME_LEN+4) //Some space for optional packet information
+
+typedef union {
+	struct sockaddr any;
+	struct sockaddr_in ip4;
+	struct sockaddr_in6 ip6;
+} sockaddr_any;
+
+struct qtsession;
+struct qtproto {
+	int encrypted;
+	int buffersize_raw;
+	int buffersize_enc;
+	int offset_raw;
+	int offset_enc;
+	int (*encode)(struct qtsession* sess, char* raw, char* enc, int len);
+	int (*decode)(struct qtsession* sess, char* enc, char* raw, int len);
+	int (*init)(struct qtsession* sess);
+	int protocol_data_size;
+	void (*idle)(struct qtsession* sess);
+};
+struct qtsession {
+	struct qtproto protocol;
+	void* protocol_data;
+	int fd_socket;
+	int fd_dev;
+	int remote_float;
+	sockaddr_any remote_addr;
+	int use_pi;
+	int poll_timeout;
+	void (*sendnetworkpacket)(struct qtsession* sess, char* msg, int len);
+};
+
+char* (*getconf)(const char*);
+int errorexit(const char*);
+int errorexitp(const char*);
+void print_header();
+void hex2bin(unsigned char*, const char*, const int);
+int debug;
+int qtrun(struct qtproto* p);
+int qtprocessargs(int argc, char** argv);
+
+#endif
