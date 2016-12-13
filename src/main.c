@@ -23,53 +23,43 @@
    authors and should not be interpreted as representing official policies, either expressed
    or implied, of Ivo Smits.*/
 
-#include "common.c"
+#include "common.h"
 
-extern struct qtproto qtproto_raw;
-extern struct qtproto qtproto_nacl0;
-extern struct qtproto qtproto_nacltai;
-extern struct qtproto qtproto_salty;
-
-#ifdef DEBIAN_BINARY
-char* getenvdeb(const char* name) {
-	char tmp[1024] = "IF_QT_";
-	if (strcmp(name, "INTERFACE") == 0) return getenv("IFACE");
-	if (strlen(tmp) + strlen(name) >= 1024) {
-		fprintf(stderr, "Error: prefixed environment variable name is too long");
-		return NULL;
-	}
-	strcat(tmp, name);
-	return getenv(tmp);
-}
-#endif
+#include <assert.h>
 
 int main(int argc, char** argv) {
 	print_header();
-#ifdef DEBIAN_BINARY
-	getconf = getenvdeb;
-#else
-	getconf = getenv;
-#endif
 	if (qtprocessargs(argc, argv) < 0) return -1;
 	char* envval;
 	if ((envval = getconf("PROTOCOL"))) {
-		if (strcmp(envval, "raw") == 0) {
-			return qtrun(&qtproto_raw);
-		} else if (strcmp(envval, "nacl0") == 0) {
-			return qtrun(&qtproto_nacl0);
-		} else if (strcmp(envval, "nacltai") == 0) {
-			return qtrun(&qtproto_nacltai);
-		} else if (strcmp(envval, "salty") == 0) {
-			return qtrun(&qtproto_salty);
-		} else {
+		struct qtproto *proto = getproto(envval);
+		if (proto == NULL) {
 			return errorexit("Unknown PROTOCOL specified");
 		}
-	} else if (getconf("PRIVATE_KEY")) {
-		fprintf(stderr, "Warning: PROTOCOL not specified, using insecure nacl0 protocol\n");
-		return qtrun(&qtproto_nacl0);
+		return qtrun(proto);
+	}
+
+	if (getconf("PRIVATE_KEY")) {
+		/* This priority list starts with nacl0 for backward
+		   compatibility, maybe the order should be changed? */
+		static const char *proto_prio[] = { "nacl0", "salty", "nacltai", NULL };
+		int i;
+		for (i = 0; proto_prio[i]; i++) {
+			struct qtproto *proto = getproto(proto_prio[i]);
+			if (proto) {
+				fprintf(stderr, "Warning: PROTOCOL not specified, using %s protocol\n", proto_prio[i]);
+				return qtrun(proto);
+			}
+		}
+	}
+
+	/* Try "raw" protocol as a last resort. */
+	struct qtproto *raw_proto = getproto("raw");
+	if (raw_proto) {
+		fprintf(stderr, "Warning: neither PROTOCOL nor PRIVATE_KEY specified, using insecure raw protocol\n");
+		return qtrun(raw_proto);
 	} else {
-		fprintf(stderr, "Warning: PROTOCOL not specified, using insecure raw protocol\n");
-		return qtrun(&qtproto_raw);
+		fprintf(stderr, "No PROTOCOL specified, and insecure raw protocol not available; terminating.");
+		return 1;
 	}
 }
-

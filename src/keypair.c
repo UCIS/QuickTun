@@ -23,9 +23,8 @@
    authors and should not be interpreted as representing official policies, either expressed
    or implied, of Ivo Smits.*/
 
-#include "common.c"
-#include "crypto_box_curve25519xsalsa20poly1305.h"
-#include "crypto_scalarmult_curve25519.h"
+#include "common.h"
+
 #include <time.h>
 #include <fcntl.h>
 

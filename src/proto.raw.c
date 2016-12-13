@@ -23,7 +23,7 @@
    authors and should not be interpreted as representing official policies, either expressed
    or implied, of Ivo Smits.*/
 
-#include "common.c"
+#include "common.h"
 
 static int encode(struct qtsession* sess, char* raw, char* enc, int len) {
 	memcpy(enc, raw, len);
@@ -46,11 +46,3 @@ struct qtproto qtproto_raw = {
 	NULL,
 	0,
 };
-
-#ifndef COMBINED_BINARY
-int main(int argc, char** argv) {
-	print_header();
-	if (qtprocessargs(argc, argv) < 0) return -1;
-	return qtrun(&qtproto_raw);
-}
-#endif
