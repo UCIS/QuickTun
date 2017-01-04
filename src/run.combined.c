@@ -50,7 +50,8 @@ int main(int argc, char** argv) {
 #else
 	getconf = getenv;
 #endif
-	if (qtprocessargs(argc, argv) < 0) return -1;
+	int rc = qtprocessargs(argc, argv);
+	if (rc <= 0) return rc;
 	char* envval;
 	if ((envval = getconf("PROTOCOL"))) {
 		if (strcmp(envval, "raw") == 0) {

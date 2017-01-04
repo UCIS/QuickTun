@@ -50,7 +50,8 @@ struct qtproto qtproto_raw = {
 #ifndef COMBINED_BINARY
 int main(int argc, char** argv) {
 	print_header();
-	if (qtprocessargs(argc, argv) < 0) return -1;
+	int rc = qtprocessargs(argc, argv);
+	if (rc <= 0) return rc;
 	return qtrun(&qtproto_raw);
 }
 #endif

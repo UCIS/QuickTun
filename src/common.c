@@ -115,7 +115,7 @@ int errorexitp(const char* text) {
 }
 
 void print_header() {
-	fprintf(stderr, "UCIS QuickTun "QT_VERSION" (c) 2010-2013 Ivo Smits <Ivo@UCIS.nl>\n");
+	fprintf(stderr, "UCIS QuickTun "QT_VERSION" (c) 2010-2017 Ivo Smits <Ivo@UCIS.nl>\n");
 	fprintf(stderr, "More information: http://wiki.ucis.nl/QuickTun\n");
 }
 
@@ -421,9 +421,11 @@ int qtprocessargs(int argc, char** argv) {
 	for (i = 1; i < argc; i++) {
 		char* a = argv[i];
 		if (!strcmp(a, "-h") || !strcmp(a, "--help")) {
-			return errorexit("Please read the documentation at http://wiki.ucis.nl/QuickTun");
+			printf("Please read the documentation at http://wiki.ucis.nl/QuickTun\n");
+			return 0;
 		} else if (!strcmp(a, "-v") || !strcmp(a, "--version")) {
-			return errorexit("UCIS QuickTun "QT_VERSION);
+			printf("UCIS QuickTun "QT_VERSION"\n");
+			return 0;
 		} else if (!strcmp(a, "-c")) {
 			gargc = argc;
 			gargv = argv;
@@ -433,7 +435,7 @@ int qtprocessargs(int argc, char** argv) {
 			return errorexit("Unexpected command line argument");
 		}
 	}
-	return 0;
+	return 1;
 }
 #endif
 
