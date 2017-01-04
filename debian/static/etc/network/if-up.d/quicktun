@@ -5,4 +5,6 @@ if [ -z "${IF_QT_NO_PRECREATE}" ]; then
 else
 	RUNUSER="root"
 fi
-/usr/bin/daemon -n "quicktun.${IFACE}" -u "${RUNUSER}" -i -l daemon.err -b daemon.debug -o daemon.debug /usr/sbin/quicktun.debian
+/usr/bin/daemon -n "quicktun.${IFACE}" -u "${RUNUSER}" -i \
+		-l daemon.err -b daemon.debug -o daemon.debug \
+		/usr/sbin/quicktun.debian
