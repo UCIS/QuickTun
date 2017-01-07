@@ -26,35 +26,71 @@
 #include "common.c"
 #include "crypto_box_curve25519xsalsa20poly1305.h"
 #include "crypto_scalarmult_curve25519.h"
-#include <time.h>
 #include <fcntl.h>
+#include <unistd.h>
 
-int main() {
+int main(int argc, char** argv) {
 	print_header();
 
 	unsigned char cpublickey[crypto_box_curve25519xsalsa20poly1305_PUBLICKEYBYTES];
 	unsigned char csecretkey[crypto_box_curve25519xsalsa20poly1305_SECRETKEYBYTES];
+	int input_mode = 0; //0=generate random, 1=read from argument
+	int output_mode = 0; //0=human readable, 1=space separated, 2=concatenated binary
 	int i;
 
-	fprintf(stderr, "Please feed 32 bytes of random data to stdin.\n");
-	fprintf(stderr, "Example (slow but secure): quicktun.keypair < /dev/random\n");
-	fprintf(stderr, "Example (fast but insecure): quicktun.keypair < /dev/urandom\n");
+	for (i = 1; i < argc; i++) {
+		char* a = argv[i];
+		if (!strcmp(a, "-h") || !strcmp(a, "--help")) {
+			printf("Please read the documentation at http://wiki.ucis.nl/QuickTun\n");
+			return 0;
+		} else if (!strcmp(a, "-v") || !strcmp(a, "--version")) {
+			printf("UCIS QuickTun "QT_VERSION"\n");
+			return 0;
+		} else if (!strcmp(a, "-i")) {
+			i++;
+			if (i >= argc) return errorexit("Missing argument for -i");
+			if (!hex2bin(csecretkey, argv[i], crypto_box_curve25519xsalsa20poly1305_SECRETKEYBYTES)) return errorexit("Invalid secret key argument");
+			input_mode = 1;
+		} else if (!strcmp(a, "-f")) {
+			int len = fread(csecretkey, 1, crypto_box_curve25519xsalsa20poly1305_SECRETKEYBYTES, stdin);
+			if (len < crypto_box_curve25519xsalsa20poly1305_SECRETKEYBYTES) return errorexitp("Error or end of file on STDIN");
+			input_mode = 1;
+		} else if (!strcmp(a, "-o")) {
+			i++;
+			a = argv[i];
+			if (i >= argc) return errorexit("Missing argument for -o");
+			if (!strcmp(a, "human")) output_mode = 0;
+			else if (!strcmp(a, "space")) output_mode = 1;
+			else if (!strcmp(a, "bin")) output_mode = 2;
+			else return errorexit("Invalid argument specified for -o");
+		} else {
+			return errorexit("Unexpected command line argument");
+		}
+	}
 
-	int len = fread(csecretkey, 1, crypto_box_curve25519xsalsa20poly1305_SECRETKEYBYTES, stdin);
-	if (len < crypto_box_curve25519xsalsa20poly1305_SECRETKEYBYTES) return errorexitp("Error or end of file on STDIN");
-/*	char* b;
-	srand(time(NULL));
-	for (b = csecretkey; b < csecretkey + crypto_box_curve25519xsalsa20poly1305_SECRETKEYBYTES; b++) *b = rand() % 255;*/
+	if (input_mode == 0) {
+		crypto_box_curve25519xsalsa20poly1305_keypair(cpublickey, csecretkey);
+	} else {
+		crypto_scalarmult_curve25519_base(cpublickey, csecretkey);
+	}
 
-	crypto_scalarmult_curve25519_base(cpublickey, csecretkey);
+	if (output_mode == 2) {
+		fwrite(csecretkey, 1, crypto_box_curve25519xsalsa20poly1305_SECRETKEYBYTES, stdout);
+		fwrite(cpublickey, 1, crypto_box_curve25519xsalsa20poly1305_PUBLICKEYBYTES, stdout);
+	} else if (output_mode == 1) {
+		for (i = 0; i < crypto_box_curve25519xsalsa20poly1305_SECRETKEYBYTES; i++) printf("%02x", csecretkey[i]);
+		printf(" ");
+		for (i = 0; i < crypto_box_curve25519xsalsa20poly1305_PUBLICKEYBYTES; i++) printf("%02x", cpublickey[i]);
+		printf("\n");
+	} else {
+		printf("SECRET: ");
+		for (i = 0; i < crypto_box_curve25519xsalsa20poly1305_SECRETKEYBYTES; i++) printf("%02x", csecretkey[i]);
+		printf("\n");
 
-	printf("SECRET: ");
-	for (i = 0; i < crypto_box_curve25519xsalsa20poly1305_SECRETKEYBYTES; i++) printf("%02x", csecretkey[i]);
-	printf("\n");
-
-	printf("PUBLIC: ");
-	for (i = 0; i < crypto_box_curve25519xsalsa20poly1305_PUBLICKEYBYTES; i++) printf("%02x", cpublickey[i]);
-	printf("\n");
+		printf("PUBLIC: ");
+		for (i = 0; i < crypto_box_curve25519xsalsa20poly1305_PUBLICKEYBYTES; i++) printf("%02x", cpublickey[i]);
+		printf("\n");
+	}
 
 	return 0;
 }

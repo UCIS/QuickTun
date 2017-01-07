@@ -40,6 +40,7 @@
 #include <stdlib.h>
 #include <arpa/inet.h>
 #include <net/if.h>
+#include <stdbool.h>
 #ifdef linux
 	#include <linux/if_tun.h>
 	#include <linux/if_ether.h>
@@ -264,18 +265,21 @@ static int init_tuntap(struct qtsession* session) {
 	return ttfd;
 }
 
-void hex2bin(unsigned char* dest, const char* src, const int count) {
+bool hex2bin(unsigned char* dest, const char* src, const int count) {
 	int i;
 	for (i = 0; i < count; i++) {
 		if (*src >= '0' && *src <= '9') *dest = *src - '0';
 		else if (*src >= 'a' && * src <='f') *dest = *src - 'a' + 10;
 		else if (*src >= 'A' && * src <='F') *dest = *src - 'A' + 10;
+		else return false;
 		src++; *dest = *dest << 4;
 		if (*src >= '0' && *src <= '9') *dest += *src - '0';
 		else if (*src >= 'a' && *src <= 'f') *dest += *src - 'a' + 10;
 		else if (*src >= 'A' && *src <= 'F') *dest += *src - 'A' + 10;
+		else return false;
 		src++; dest++;
 	}
+	return true;
 }
 
 static int drop_privileges() {

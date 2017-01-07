@@ -26,7 +26,7 @@ mkdir -p out
 echo Creating source archive...
 $tar --transform "s,^,quicktun-`cat version`/," -czf "out/quicktun-`cat version`.tgz" build.sh clean.sh debian src version --exclude "debian/data"
 
-mkdir -p obj tmp tmp/include
+mkdir -p obj tmp tmp/include tmp/lib
 
 export LIBRARY_PATH="/usr/local/lib/:${LIBRARY_PATH}"
 
@@ -45,28 +45,14 @@ elif $cc -shared -lnacl tmp/libtest2.c -o tmp/libtest 2>/dev/null; then
 	export CPATH="./tmp/include/:${CPATH}"
 	export CRYPTLIB="nacl"
 else
-	mkdir -p lib include
-	echo Checking for NaCl library...
-	if [ -e lib/libnacl.a -a -e include/crypto_box_curve25519xsalsa20poly1305.h -a -e include/crypto_scalarmult_curve25519.h ]; then
-		echo Found.
-	else
-		echo Not found, building...
-		mkdir tmp/nacl
-		cd tmp/nacl
-		NACLURL="http://hyperelliptic.org/nacl/nacl-20110221.tar.bz2"
-		(wget -q -O- "${NACLURL}" || curl -q "${NACLURL}") | bunzip2 | $tar -xf - --strip-components 1
-		./do
-		cd ../../
-		NACLDIR="tmp/nacl/build/`hostname | sed 's/\..*//' | tr -cd '[a-z][A-Z][0-9]'`"
-		ABI=`"${NACLDIR}/bin/okabi" | head -n 1`
-		cp "${NACLDIR}/lib/${ABI}/libnacl.a" lib/
-		cp "${NACLDIR}/include/${ABI}/crypto_box_curve25519xsalsa20poly1305.h" include/
-		cp "${NACLDIR}/include/${ABI}/crypto_scalarmult_curve25519.h" include/
-		echo Done.
-	fi
-	export CPATH="./include/:${CPATH}"
-	export LIBRARY_PATH="./lib/:${LIBRARY_PATH}"
-	export CRYPTLIB="nacl"
+	echo Building TweetNaCl...
+	echo 'The TweetNaCl cryptography library is not optimized for performance. Please install libsodium or libnacl before building QuickTun for best performance.'
+	$cc $CFLAGS -shared -fPIC src/tweetnacl.c src/randombytes.c -o tmp/lib/libtweetnacl.a
+	echo '#include <src/tweetnacl.h>' > tmp/include/crypto_box_curve25519xsalsa20poly1305.h
+	echo '#include <src/tweetnacl.h>' > tmp/include/crypto_scalarmult_curve25519.h
+	export CPATH="./tmp/include/:${CPATH}"
+	export LIBRARY_PATH="./tmp/lib/:${LIBRARY_PATH}"
+	export CRYPTLIB="tweetnacl"
 fi
 
 CFLAGS="$CFLAGS -DQT_VERSION=\"`cat version`\""
