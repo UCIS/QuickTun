@@ -301,7 +301,10 @@ static void qtsendnetworkpacket(struct qtsession* session, char* msg, int len) {
 	if (session->remote_float == 0) {
 		len = write(session->fd_socket, msg, len);
 	} else if (session->remote_float == 2) {
-		len = sendto(session->fd_socket, msg, len, 0, (struct sockaddr*)&session->remote_addr, sizeof(sockaddr_any));
+		int sa_size = sizeof(sockaddr_any);
+		if (session->remote_addr.any.sa_family == AF_INET) sa_size = sizeof(struct sockaddr_in);
+		else if (session->remote_addr.any.sa_family == AF_INET6) sa_size = sizeof(struct sockaddr_in6);
+		len = sendto(session->fd_socket, msg, len, 0, (struct sockaddr*)&session->remote_addr, sa_size);
 	}
 }
 
