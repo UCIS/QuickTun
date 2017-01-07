@@ -34,14 +34,15 @@ struct packedtaia {
 };
 
 struct qt_proto_data_nacltai {
-	unsigned char cenonce[crypto_box_curve25519xsalsa20poly1305_NONCEBYTES], cdnonce[crypto_box_curve25519xsalsa20poly1305_NONCEBYTES];
+	unsigned char cenonce[crypto_box_curve25519xsalsa20poly1305_NONCEBYTES];
+	unsigned char cdnonce[crypto_box_curve25519xsalsa20poly1305_NONCEBYTES];
 	unsigned char cbefore[crypto_box_curve25519xsalsa20poly1305_BEFORENMBYTES];
 	struct packedtaia cdtailog[5];
 };
 
 #define noncelength 16
 #define nonceoffset (crypto_box_curve25519xsalsa20poly1305_NONCEBYTES - noncelength)
-static const int overhead                 = crypto_box_curve25519xsalsa20poly1305_BOXZEROBYTES + noncelength;
+static const int overhead = crypto_box_curve25519xsalsa20poly1305_BOXZEROBYTES + noncelength;
 
 static void taia_now_packed(unsigned char* b, int secoffset) {
 	struct timeval now;
@@ -70,7 +71,8 @@ static int encode(struct qtsession* sess, char* raw, char* enc, int len) {
 	struct qt_proto_data_nacltai* d = (struct qt_proto_data_nacltai*)sess->protocol_data;
 	memset(raw, 0, crypto_box_curve25519xsalsa20poly1305_ZEROBYTES);
 	taia_now_packed(d->cenonce + nonceoffset, 0);
-	if (crypto_box_curve25519xsalsa20poly1305_afternm((unsigned char*)enc, (unsigned char*)raw, len + crypto_box_curve25519xsalsa20poly1305_ZEROBYTES, d->cenonce, d->cbefore)) return errorexit("Encryption failed");
+	if (crypto_box_curve25519xsalsa20poly1305_afternm((unsigned char*)enc, (unsigned char*)raw, len + crypto_box_curve25519xsalsa20poly1305_ZEROBYTES, d->cenonce, d->cbefore))
+		return errorexit("Encryption failed");
 	memcpy((void*)(enc + crypto_box_curve25519xsalsa20poly1305_BOXZEROBYTES - noncelength), d->cenonce + nonceoffset, noncelength);
 	len += overhead;
 	if (debug) fprintf(stderr, "Encoded packet of %d bytes from %p to %p\n", len, raw, enc);
@@ -138,7 +140,8 @@ static int init(struct qtsession* sess) {
 	} else {
 		return errorexit("Missing PRIVATE_KEY");
 	}
-	crypto_box_curve25519xsalsa20poly1305_beforenm(d->cbefore, cpublickey, csecretkey);
+	if (crypto_box_curve25519xsalsa20poly1305_beforenm(d->cbefore, cpublickey, csecretkey))
+		return errorexit("Encryption key calculation failed");
 
 	memset(d->cenonce, 0, crypto_box_curve25519xsalsa20poly1305_NONCEBYTES);
 	memset(d->cdnonce, 0, crypto_box_curve25519xsalsa20poly1305_NONCEBYTES);

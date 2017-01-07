@@ -209,7 +209,10 @@ static void initdecoder(struct qt_proto_data_salty_decstate* d, unsigned char rk
 	memset(d->timestamps, 0, 5 * sizeof(uint32));
 	if (debug) dumphex("INIT DECODER SK", lkey, 32);
 	if (debug) dumphex("INIT DECODER RK", rkey, 32);
-	crypto_box_curve25519xsalsa20poly1305_beforenm(d->sharedkey, rkey, lkey);
+	if (crypto_box_curve25519xsalsa20poly1305_beforenm(d->sharedkey, rkey, lkey)) {
+		errorexit("Encryption key calculation failed");
+		abort();
+	}
 }
 
 static void sendkeyupdate(struct qtsession* sess, bool ack) {
@@ -291,7 +294,8 @@ static int init(struct qtsession* sess) {
 	} else {
 		return errorexit("Missing PRIVATE_KEY");
 	}
-	crypto_box_curve25519xsalsa20poly1305_beforenm(d->controlkey, cpublickey, csecretkey);
+	if (crypto_box_curve25519xsalsa20poly1305_beforenm(d->controlkey, cpublickey, csecretkey))
+		return errorexit("Encryption key calculation failed");
 	unsigned char cownpublickey[PUBLICKEYBYTES];
 	crypto_scalarmult_curve25519_base(cownpublickey, csecretkey);
 	int role = memcmp(cownpublickey, cpublickey, PUBLICKEYBYTES);
@@ -434,7 +438,10 @@ static int decode(struct qtsession* sess, char* enc, char* raw, int len) {
 			d->datalocalkeynextid = -1;
 		}
 		if (lkeyid == d->datalocalkeyid) {
-			crypto_box_curve25519xsalsa20poly1305_beforenm(enckey->sharedkey, d->dataremotekey, enckey->privatekey);
+			if (crypto_box_curve25519xsalsa20poly1305_beforenm(enckey->sharedkey, d->dataremotekey, enckey->privatekey)) {
+				errorexit("Encryption key calculation failed");
+				abort();
+			}
 			d->dataencoder = enckey;
 		}
 		if (debug) fprintf(stderr, "Decoded control packet: rkid=%d, lkid=%d, ack=%d, lkvalid=%d, uptodate=%d\n", d->dataremotekeyid, (cflags >> 5) & 0x01, (cflags >> 4) & 0x01, lkeyid != -1, d->datalocalkeynextid == -1);

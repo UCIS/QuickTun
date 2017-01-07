@@ -3,6 +3,6 @@ Version: %VERSION%
 Section: net
 Priority: optional
 Architecture: %ARCHITECTURE%
-Depends: bash, daemon, iproute (>= 20100519-3) | iproute2 (>= 20100519-3) | openvpn, passwd, coreutils
+Depends: bash, daemon, iproute (>= 20100519-1) | iproute2 | openvpn, passwd, coreutils
 Maintainer: Ivo Smits <ivo@ucis.nl>
 Description: Very simple, yet secure VPN software

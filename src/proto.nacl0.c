@@ -80,7 +80,8 @@ static int init(struct qtsession* sess) {
 	} else {
 		return errorexit("Missing PRIVATE_KEY");
 	}
-	crypto_box_curve25519xsalsa20poly1305_beforenm(d->cbefore, cpublickey, csecretkey);
+	if (crypto_box_curve25519xsalsa20poly1305_beforenm(d->cbefore, cpublickey, csecretkey))
+		return errorexit("Encryption key calculation failed");
 	return 0;
 }
 
