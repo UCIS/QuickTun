@@ -23,8 +23,10 @@ echo Cleaning up...
 rm -rf out/ obj/ tmp/
 
 mkdir -p out
-echo Creating source archive...
-$tar --transform "s,^,quicktun-`cat version`/," -czf "out/quicktun-`cat version`.tgz" build.sh clean.sh debian src version --exclude "debian/data"
+if [ "$1" != "debian" ]; then
+	echo Creating source archive...
+	$tar --transform "s,^,quicktun-`cat version`/," -czf "out/quicktun-`cat version`.tgz" build.sh clean.sh debian src version --exclude "debian/data"
+fi
 
 mkdir -p obj tmp tmp/include tmp/lib
 
@@ -32,7 +34,7 @@ export LIBRARY_PATH="/usr/local/lib/:${LIBRARY_PATH}"
 
 echo '#include <sodium/crypto_box_curve25519xsalsa20poly1305.h>' > tmp/libtest1.c
 echo '#include <nacl/crypto_box_curve25519xsalsa20poly1305.h>' > tmp/libtest2.c
-if $cc -shared -lsodium tmp/libtest1.c -o tmp/libtest 2>/dev/null; then
+if [ "$1" = "debian" ] || $cc -shared -lsodium tmp/libtest1.c -o tmp/libtest 2>/dev/null; then
 	echo Using shared libsodium.
 	echo '#include <sodium/crypto_box_curve25519xsalsa20poly1305.h>' > tmp/include/crypto_box_curve25519xsalsa20poly1305.h
 	echo '#include <sodium/crypto_scalarmult_curve25519.h>' > tmp/include/crypto_scalarmult_curve25519.h
@@ -74,11 +76,11 @@ $cc $CFLAGS -o out/quicktun.nacltai	src/proto.nacltai.c	-l$CRYPTLIB	$LDFLAGS
 $cc $CFLAGS -o out/quicktun.salty	src/proto.salty.c	-l$CRYPTLIB	$LDFLAGS
 $cc $CFLAGS -o out/quicktun.keypair	src/keypair.c		-l$CRYPTLIB	$LDFLAGS
 
-if [ -f /etc/network/interfaces ]; then
+if [ -f /etc/network/interfaces -o "$1" = "debian" ]; then
 	echo Building debian binary...
 	$cc $CFLAGS -c -DCOMBINED_BINARY -DDEBIAN_BINARY src/run.combined.c -o obj/run.debian.o
 	$cc $CFLAGS -o out/quicktun.debian obj/common.o obj/run.debian.o obj/proto.raw.o obj/proto.nacl0.o obj/proto.nacltai.o obj/proto.salty.o -l$CRYPTLIB $LDFLAGS
-	if [ -x /usr/bin/dpkg-deb -a -x /usr/bin/fakeroot ]; then
+	if [ "$1" != "debian" -a -x /usr/bin/dpkg-deb -a -x /usr/bin/fakeroot ]; then
 		echo -n Building debian package...
 		cd debian
 		./build.sh
