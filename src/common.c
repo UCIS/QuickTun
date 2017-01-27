@@ -357,7 +357,7 @@ int qtrun(struct qtproto* p) {
 		if (len == 0 && p->idle) p->idle(&session);
 		if (fds[0].revents & POLLIN) {
 			len = read(ttfd, buffer_raw + p->offset_raw, p->buffersize_raw + pi_length);
-			if (len < pi_length) errorexit("read packet smaller than header from tun device");
+			if (len < pi_length) return errorexit("read packet smaller than header from tun device");
 			if (session.remote_float == 0 || session.remote_float == 2) {
 				len = p->encode(&session, buffer_raw + pi_length, buffer_enc, len - pi_length);
 				if (len < 0) return len;

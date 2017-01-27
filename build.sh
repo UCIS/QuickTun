@@ -25,7 +25,7 @@ rm -rf out/ obj/ tmp/
 mkdir -p out
 if [ "$1" != "debian" ]; then
 	echo Creating source archive...
-	$tar --transform "s,^,quicktun-`cat version`/," -czf "out/quicktun-`cat version`.tgz" build.sh clean.sh debian src version --exclude "debian/data"
+	$tar --transform "s,^,quicktun-`cat version`/," -czf "out/quicktun-`cat version`.tgz" build.sh clean.sh deb src version --exclude "debian/data"
 fi
 
 mkdir -p obj tmp tmp/include tmp/lib
@@ -82,7 +82,7 @@ if [ -f /etc/network/interfaces -o "$1" = "debian" ]; then
 	$cc $CFLAGS -o out/quicktun.debian obj/common.o obj/run.debian.o obj/proto.raw.o obj/proto.nacl0.o obj/proto.nacltai.o obj/proto.salty.o -l$CRYPTLIB $LDFLAGS
 	if [ "$1" != "debian" -a -x /usr/bin/dpkg-deb -a -x /usr/bin/fakeroot ]; then
 		echo -n Building debian package...
-		cd debian
+		cd deb
 		./build.sh
 		cd ..
 	fi
