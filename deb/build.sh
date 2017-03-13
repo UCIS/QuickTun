@@ -1,7 +1,9 @@
 #!/bin/sh
 set -e
 VERSION=`cat ../version`-0
-ARCH=`dpkg --print-architecture`
+if [ ! $ARCH ]; then
+	ARCH=`dpkg --print-architecture`
+fi
 rm -r data 2>/dev/null || true
 cp -r static data
 mkdir -p data/usr data/usr/sbin data/DEBIAN
