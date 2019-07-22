@@ -2,7 +2,9 @@
 set -e
 
 tar="tar"
-cc="cc"
+if [ ! $cc ]; then
+	cc="cc"
+fi
 
 if [ "$(uname -s)" = "OpenBSD" -o "$(uname -s)" = "FreeBSD" -o "$(uname -s)" = "NetBSD" ]; then
 	echo "Detected *BSD"
