@@ -25,7 +25,7 @@ rm -rf out/ obj/ tmp/
 mkdir -p out
 if [ "$1" != "debian" ]; then
 	echo Creating source archive...
-	$tar --transform "s,^,quicktun-`cat version`/," -czf "out/quicktun-`cat version`.tgz" build.sh clean.sh deb src version --exclude "debian/data"
+	$tar --transform "s,^,quicktun-`cat version`/," --exclude "debian/data" -czf "out/quicktun-`cat version`.tgz" build.sh clean.sh deb src version
 fi
 
 mkdir -p obj tmp tmp/include
