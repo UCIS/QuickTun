@@ -46,10 +46,17 @@
 	#include <linux/if_ether.h>
 #else
 	#define ETH_FRAME_LEN 1514
-	#include <net/if_tun.h>
-	#ifdef SOLARIS
-		#include <sys/stropts.h>
-		#include <sys/sockio.h>
+	#ifdef __APPLE__
+		#include <ctype.h>
+		#include <net/if_utun.h>
+		#include <sys/sys_domain.h>
+		#include <sys/kern_control.h>
+	#else
+		#include <net/if_tun.h>
+		#ifdef SOLARIS
+			#include <sys/stropts.h>
+			#include <sys/sockio.h>
+		#endif
 	#endif
 #endif
 
@@ -160,6 +167,28 @@ static void sockaddr_to_string(sockaddr_any* sa, char* str, int strbuflen) {
 	}
 	str[strbuflen - 1] = 0;
 }
+#ifdef __APPLE__
+static int open_darwin_utun(struct ctl_info ctlInfo, int utunnum) {
+	struct sockaddr_ctl sc;
+	int fd;
+	fd = socket(PF_SYSTEM, SOCK_DGRAM, SYSPROTO_CONTROL);
+	if (fd == -1) errorexitp("socket(SYSPROTO_CONTROL)");
+	if (ioctl(fd, CTLIOCGINFO, &ctlInfo) == -1) {
+		close(fd);
+		errorexitp("ioctl(CTLIOCGINFO)");
+	}
+	sc.sc_id = ctlInfo.ctl_id;
+	sc.sc_len = sizeof(sc);
+	sc.sc_family = AF_SYSTEM;
+	sc.ss_sysaddr = AF_SYS_CONTROL;
+	sc.sc_unit = utunnum + 1;
+	if (connect(fd, (struct sockaddr *)&sc, sizeof(sc)) == -1) {
+		close(fd);
+		errorexitp("connect(AF_SYS_CONTROL)");
+	}
+	return fd;
+}
+#endif
 
 static int init_udp(struct qtsession* session) {
 	char* envval;
@@ -246,6 +275,29 @@ static int init_tuntap(struct qtsession* session) {
 	if (ioctl(if_fd, I_PUSH, "ip") < 0) return errorexitp("Could not push IP module");
 	if (ioctl(if_fd, IF_UNITSEL, (char *)&ppa) < 0) return errorexitp("Could not set PPA");
 	if (ioctl(ip_fd, I_LINK, if_fd) < 0) return errorexitp("Could not link TUN device to IP");
+#elif defined(__APPLE__)
+	struct ctl_info ctlInfo;
+	int utunnum = -1;
+	if (!session->use_pi) session->use_pi = 2;
+	if ((envval = getconf("INTERFACE"))) {
+		char *t = NULL;
+		while (*envval && !isdigit((int)*envval)) envval++;
+		utunnum = (int) strtol(envval, &t, 10);
+		if (envval == t) {
+			utunnum = -1;
+		}
+	}
+	memset(&ctlInfo, 0, sizeof(ctlInfo));
+	if (strlcpy(ctlInfo.ctl_name, UTUN_CONTROL_NAME, sizeof(ctlInfo.ctl_name)) >=
+	    sizeof(ctlInfo.ctl_name)) return errorexitp("UTUN_CONTROL_NAME too long");
+	if (utunnum == -1) {
+		for (utunnum = 0; utunnum < 255; utunnum++) {
+			ttfd = open_darwin_utun(ctlInfo, utunnum);
+			if (ttfd != -1) break;
+		}
+	} else {
+		ttfd = open_darwin_utun(ctlInfo, utunnum);
+	}
 #else
 	if (!(envval = getconf("INTERFACE"))) envval = "/dev/tun0";
 	if ((ttfd = open(envval, O_RDWR)) < 0) return errorexitp("Could not open tun device file");
